@@ -41,6 +41,10 @@ build/Release
 node_modules/
 jspm_packages/
 
+# Seed / Automation scripts
+seed-commits.ps1
+*.ps1
+
 # Snowpack dependency directory (https://snowpack.dev/)
 web_modules/
 
