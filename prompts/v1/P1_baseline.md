@@ -1,7 +1,7 @@
 # Prompt Version 1 (v1) — Milestone 1 Baseline Prompt
 
 - **Date:** 2026-10-09 (Submitted in Milestone 1 Form, Q18)
-- **Author:** Samanyu Khanna (BastionBytes)
+- **Author:** Harsh Dhiman (BastionBytes)
 - **Role / Task:** Monolithic resume reviewer comparing resume with job description, scoring, gap analysis, and bullet rewriting.
 - **Model / Tool:** ChatGPT / Gemini (Default settings, temperature ~0.7)
 

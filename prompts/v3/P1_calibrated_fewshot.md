@@ -1,7 +1,7 @@
 # Prompt Version 3 (v3) — Calibrated Few-Shot & Pipeline Separation
 
 - **Date:** 2026-11-12
-- **Author:** Samanyu Khanna, Varnit Agustya, Ayush Tiwari (BastionBytes)
+- **Author:** Harsh Dhiman, Deepanshi Pokhriyal, Kartik Nagar, Devansh Khanna (BastionBytes)
 - **Role / Task:** Split into specialized prompts (Extractor, Scorer, Rewriter), locked temperature to 0.1, added few-shot demonstrations, and added anti-hallucination rules.
 - **Model / Tool:** Gemini 2.5 Flash / GPT-4o-mini (Temperature: 0.1 - 0.2)
 

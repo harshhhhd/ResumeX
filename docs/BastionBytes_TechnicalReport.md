@@ -2,7 +2,7 @@
 ## AI-Powered Resume Screening and Explainable Scoring Pipeline
 **Course:** SCSE4041 — Prompt Engineering | **Milestone:** 2  
 **Team Name:** BastionBytes | **Problem Pool ID:** C9  
-**Team Members:** Samanyu Khanna (Lead), Yuvraj Pathania, Ayush Tiwari, Varnit Agustya, Nakshatra Gupta, Gurpreet Nagar  
+**Team Members:** Harsh Dhiman (Lead), Deepanshi Pokhriyal, Kartik Nagar, Devansh Khanna  
 **Institution:** Bennett University, Greater Noida  
 
 ---

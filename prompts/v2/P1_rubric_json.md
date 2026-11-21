@@ -1,7 +1,7 @@
 # Prompt Version 2 (v2) — Rubric-Guided & JSON Output
 
 - **Date:** 2026-10-28
-- **Author:** Samanyu Khanna & Yuvraj Pathania (BastionBytes)
+- **Author:** Harsh Dhiman & Kartik Nagar (BastionBytes)
 - **Role / Task:** Added explicit 6-part weighted scoring formula and enforced raw JSON schema output.
 - **Model / Tool:** Gemini 1.5 Flash / GPT-4o-mini (Temperature: 0.3)
 
