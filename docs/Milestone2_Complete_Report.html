@@ -4,86 +4,28 @@
   <meta charset="UTF-8">
   <title>M2_T42_AIPoweredResumeReviewer</title>
   <style>
-    @page {
-      size: A4;
-      margin: 20mm 15mm 20mm 15mm;
-    }
+    @page { size: A4; margin: 20mm 15mm 20mm 15mm; }
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      color: #111;
-      line-height: 1.45;
-      font-size: 10pt;
-      margin: 0;
-      padding: 0;
+      color: #111; line-height: 1.45; font-size: 10pt; margin: 0; padding: 0;
     }
-    h1.doc-title {
-      font-size: 20pt;
-      text-align: center;
-      margin-top: 30px;
-      margin-bottom: 5px;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-    }
-    h2.doc-subtitle {
-      font-size: 13pt;
-      text-align: center;
-      font-weight: 500;
-      color: #444;
-      margin-top: 0;
-      margin-bottom: 30px;
-    }
-    h1.sec-header {
-      font-size: 14pt;
-      margin-top: 20px;
-      margin-bottom: 10px;
-      color: #000;
-      border-bottom: 2px solid #000;
-      padding-bottom: 4px;
-      text-transform: uppercase;
-    }
+    h1.doc-title { font-size: 20pt; text-align: center; margin-top: 30px; margin-bottom: 5px; text-transform: uppercase; letter-spacing: 0.5px; }
+    h2.doc-subtitle { font-size: 13pt; text-align: center; font-weight: 500; color: #444; margin-top: 0; margin-bottom: 30px; }
+    h1.sec-header { font-size: 14pt; margin-top: 20px; margin-bottom: 10px; color: #000; border-bottom: 2px solid #000; padding-bottom: 4px; text-transform: uppercase; }
     h2 { font-size: 11pt; margin-top: 14px; margin-bottom: 6px; color: #222; }
     h3 { font-size: 10pt; margin-top: 10px; margin-bottom: 4px; color: #333; }
     p { margin: 4px 0 8px 0; text-align: justify; }
     .page-break { page-break-after: always; }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin: 8px 0 14px 0;
-      font-size: 9pt;
-    }
-    th, td {
-      border: 1px solid #bbb;
-      padding: 5px 7px;
-      text-align: left;
-      vertical-align: top;
-    }
-    th {
-      background-color: #f1f3f5;
-      font-weight: 600;
-    }
-    .cover-box {
-      border: 2px solid #333;
-      padding: 20px;
-      margin-top: 20px;
-      background: #fafafa;
-    }
+    table { width: 100%; border-collapse: collapse; margin: 8px 0 14px 0; font-size: 9pt; }
+    th, td { border: 1px solid #bbb; padding: 5px 7px; text-align: left; vertical-align: top; }
+    th { background-color: #f1f3f5; font-weight: 600; }
+    .cover-box { border: 2px solid #333; padding: 20px; margin-top: 20px; background: #fafafa; }
     .meta-label { font-weight: 600; color: #222; }
-    code, pre {
-      font-family: "Courier New", Courier, monospace;
-      font-size: 8.5pt;
-      background: #f5f5f5;
-    }
-    pre {
-      padding: 8px;
-      border: 1px solid #ddd;
-      border-radius: 3px;
-      overflow-x: auto;
-      white-space: pre-wrap;
-      line-height: 1.25;
-      margin: 6px 0 10px 0;
-    }
+    code, pre { font-family: "Courier New", Courier, monospace; font-size: 8.5pt; background: #f5f5f5; }
+    pre { padding: 8px; border: 1px solid #ddd; border-radius: 3px; overflow-x: auto; white-space: pre-wrap; line-height: 1.25; margin: 6px 0 10px 0; }
     .badge-pass { color: #0b7226; font-weight: bold; }
     .badge-fail { color: #d61f1f; font-weight: bold; }
+    .badge-part { color: #8a5a00; font-weight: bold; }
   </style>
 </head>
 <body>
@@ -110,10 +52,10 @@
         </tr>
       </thead>
       <tbody>
-        <tr><td><strong>Kartik Nagar</td><td><strong>S24CSEU1960</strong></td><td>S24CSEU1960@bennett.edu.in</td><td></td></tr>
-        <tr><td>Harsh Dhiman</td><td>S24CSEU2329</td><td>S24CSEU2329@bennett.edu.in</td><td></td></tr>
-        <tr><td>Deepanshi Pokhriyal</td><td>S24CSEU2688</td><td>S24CSEU2688@bennett.edu.in</td><td></td></tr>
-        <tr><td>Devansh Khanna</td><td>S24CSEU0830</td><td>S24CSEU0830@bennett.edu.in</td><td></td></tr>
+        <tr><td>Harsh Dhiman</td><td>S24CSEU2329</td><td>S24CSEU2329@bennett.edu.in</td><td>Team Lead &mdash; Prompt Architecture (P1, P2)</td></tr>
+        <tr><td>Deepanshi Pokhriyal</td><td>S24CSEU2688</td><td>S24CSEU2688@bennett.edu.in</td><td>Prompt Engineering (P3 Rewriter) &amp; Testing</td></tr>
+        <tr><td>Kartik Nagar</td><td>S24CSEU1960</td><td>S24CSEU1960@bennett.edu.in</td><td>Backend &amp; Integration</td></tr>
+        <tr><td>Devansh Khanna</td><td>S24CSEU0830</td><td>S24CSEU0830@bennett.edu.in</td><td>Frontend &amp; Prototype UI</td></tr>
       </tbody>
     </table>
 
@@ -128,16 +70,18 @@
   <!-- SECTION 2: PROMPT AND SOLUTION DESIGN -->
   <h1 class="sec-header">Section 2: Prompt and Solution Design</h1>
 
-  <h2>2.1 Solution Overview & Design Decisions</h2>
-  <p><strong>Problem & Target Users:</strong> College students and fresh graduates applying for internships often struggle to understand how well their resumes match job descriptions. They receive opaque automated rejections without actionable feedback on missing skills, weak bullet points, or how to align their experiences. Concurrently, recruiters face massive applicant volumes and need transparent, explainable evaluations rather than arbitrary black-box scores.</p>
-  
-  <p><strong>Input & Output:</strong> Inputs are raw resume text (PDF/DOCX) and the company job description. Outputs are: (1) a structured requirement match matrix with verified evidence quotes, (2) an explainable 0–100 compatibility score across 6 weighted dimensions, and (3) action-oriented STAR-format bullet point suggestions grounded strictly in candidate actual experience.</p>
+  <h2>2.1 Solution Overview &amp; Design Decisions</h2>
+  <p><strong>Problem &amp; Target Users:</strong> College students and fresh graduates applying for internships often struggle to understand how well their resumes match job descriptions. They receive opaque automated rejections without actionable feedback on missing skills, weak bullet points, or how to align their experiences. Concurrently, recruiters face massive applicant volumes and need transparent, explainable evaluations rather than arbitrary black-box scores.</p>
+
+  <p><strong>Input &amp; Output:</strong> Inputs are raw resume text (PDF/DOCX) and the company job description. Outputs are: (1) a structured requirement match matrix with verified evidence quotes, (2) an explainable 0&ndash;100 compatibility score across 6 weighted dimensions, and (3) action-oriented STAR-format bullet point suggestions grounded strictly in the candidate's actual experience.</p>
 
   <p><strong>Decomposition Strategy (Why 3 Prompts):</strong> Our Milestone 1 baseline used a single monolithic prompt. Testing revealed severe score variance (&sigma; = 8.6), hallucinated tools, and frequent JSON syntax errors. Decomposing the system into 3 specialized stages (<code>P1_PARSER</code> &rarr; <code>P2_SCORER</code> &rarr; <code>P3_REWRITER</code>) isolates entity extraction from mathematical scoring and creative rewriting, eliminating cognitive overload in the model.</p>
 
   <p><strong>Tool and Model Choice:</strong> <strong>Gemini 2.5 Flash</strong> via Google AI Studio was selected for its high reasoning capabilities, native JSON schema support, low latency (&lt;1.5s per turn), and extensive context window.</p>
 
-  <h2>2.2 Workflow & Architecture Diagram</h2>
+  <p><strong>Prototype Application:</strong> The prompts are wired into a full-stack web app (React 19 + TanStack Start + TypeScript on the front end and server, Supabase for authentication and data, and a FastAPI service for job structuring). Students upload a resume on a job page and see the score, strengths, gaps and requirement matrix; recruiters post jobs and review candidates. If the AI provider is unavailable, a deterministic analysis engine returns a lower-confidence result instead of failing.</p>
+
+  <h2>2.2 Workflow &amp; Architecture Diagram</h2>
   <pre>
 [Candidate Resume Text] ──┐
                           ├───> [ P1_PARSER ] ───> [ Candidate Profile JSON ] ──┐
@@ -156,11 +100,11 @@
 
   <h2>2.3 Prompt Sheets</h2>
 
-  <h3>Prompt Sheet 1: P1_PARSER (Entity & Requirement Extractor)</h3>
+  <h3>Prompt Sheet 1: P1_PARSER (Entity &amp; Requirement Extractor)</h3>
   <table>
-    <tr><th style="width: 25%;">Prompt ID & Step</th><td><code>P1_PARSER</code> &bull; Step 1 of 3 (Intake & Entity Extraction)</td></tr>
+    <tr><th style="width: 25%;">Prompt ID &amp; Step</th><td><code>P1_PARSER</code> &bull; Step 1 of 3 (Intake &amp; Entity Extraction)</td></tr>
     <tr><th>Purpose</th><td>Converts raw resume and job description text into structured JSON with normalized aliases and requirement typing.</td></tr>
-    <tr><th>Tool & Model</th><td>Gemini 2.5 Flash in Google AI Studio &bull; Temperature: 0.1 &bull; Top-P: 0.95 &bull; Output: application/json</td></tr>
+    <tr><th>Tool &amp; Model</th><td>Gemini 2.5 Flash in Google AI Studio &bull; Temperature: 0.1 &bull; Top-P: 0.95 &bull; Output: application/json</td></tr>
     <tr><th>System Prompt</th><td>
 <pre style="margin: 0;">You are the Resume & Job Profile Entity Extraction Engine for an AI Recruitment Platform.
 Parse raw resume text and job descriptions into structured entity profiles.
@@ -173,11 +117,11 @@ Tag requirements as 'mandatory', 'preferred', or 'contextual'. Preserve source t
     <tr><th>Sample Run</th><td>Extracted candidate Aarav Sharma (Python, SQL, Excel); tagged Data Visualization as mandatory and Excel as preferred. Valid JSON produced.</td></tr>
   </table>
 
-  <h3>Prompt Sheet 2: P2_SCORER (Hybrid Match & Scoring Engine)</h3>
+  <h3>Prompt Sheet 2: P2_SCORER (Hybrid Match &amp; Scoring Engine)</h3>
   <table>
-    <tr><th style="width: 25%;">Prompt ID & Step</th><td><code>P2_SCORER</code> &bull; Step 2 of 3 (Evaluation & Audit Scoring)</td></tr>
+    <tr><th style="width: 25%;">Prompt ID &amp; Step</th><td><code>P2_SCORER</code> &bull; Step 2 of 3 (Evaluation &amp; Audit Scoring)</td></tr>
     <tr><th>Purpose</th><td>Calculates 6-component weighted score, verifies evidence quotes, identifies gaps with severity, and generates interview check questions.</td></tr>
-    <tr><th>Tool & Model</th><td>Gemini 2.5 Flash in Google AI Studio &bull; Temperature: 0.1 &bull; Top-P: 0.95 &bull; Output: application/json</td></tr>
+    <tr><th>Tool &amp; Model</th><td>Gemini 2.5 Flash in Google AI Studio &bull; Temperature: 0.1 &bull; Top-P: 0.95 &bull; Output: application/json</td></tr>
     <tr><th>System Prompt</th><td>
 <pre style="margin: 0;">You are the Hybrid Scoring & Explainable Audit Engine of EigenHire.
 Compute Score = 0.40*skills + 0.20*exp + 0.15*proj + 0.10*edu + 0.10*resp + 0.05*evidence.
@@ -191,9 +135,9 @@ For missing skills, specify severity ('critical'/'moderate'/'minor') and impact.
 
   <h3>Prompt Sheet 3: P3_REWRITER (Action-Oriented Bullet Rewriter)</h3>
   <table>
-    <tr><th style="width: 25%;">Prompt ID & Step</th><td><code>P3_REWRITER</code> &bull; Step 3 of 3 (Enhancement & Feedback)</td></tr>
+    <tr><th style="width: 25%;">Prompt ID &amp; Step</th><td><code>P3_REWRITER</code> &bull; Step 3 of 3 (Enhancement &amp; Feedback)</td></tr>
     <tr><th>Purpose</th><td>Rewrites weak candidate bullets into high-impact STAR statements with strict anti-hallucination constraints.</td></tr>
-    <tr><th>Tool & Model</th><td>Gemini 2.5 Flash in Google AI Studio &bull; Temperature: 0.2 &bull; Top-P: 0.95 &bull; Output: application/json</td></tr>
+    <tr><th>Tool &amp; Model</th><td>Gemini 2.5 Flash in Google AI Studio &bull; Temperature: 0.2 &bull; Top-P: 0.95 &bull; Output: application/json</td></tr>
     <tr><th>System Prompt</th><td>
 <pre style="margin: 0;">You are the Resume Bullet Enhancement Engine of EigenHire.
 Rewrite weak bullet points into action-verb-led statements aligned with the target role.
@@ -222,25 +166,32 @@ Do NOT invent metrics, percentages, or unmentioned tools. Start with strong acti
     </thead>
     <tbody>
       <tr>
-        <td><strong>1. Resume & JD Entity Extractor</strong></td>
+        <td><strong>1. Resume &amp; JD Entity Extractor</strong></td>
         <td>Parses raw text; extracts normalized skills, experience, education; types requirements.</td>
-        <td><strong>Working</strong></td>
-        <td>Uses <code>P1_PARSER</code> ($T=0.1$); 100% valid JSON schema output.</td>
+        <td><span class="badge-pass">Working</span></td>
+        <td>Uses <code>P1_PARSER</code> (T=0.1); valid JSON schema output in 10 of 10 repeated runs.</td>
       </tr>
       <tr>
-        <td><strong>2. Hybrid Match & Scoring Engine</strong></td>
-        <td>Computes 6-part weighted formula ($0.40 \cdot \text{Skills} + \dots$); extracts quotes; flags gaps.</td>
-        <td><strong>Working</strong></td>
-        <td>Uses <code>P2_SCORER</code> ($T=0.1$); deterministic inter-run variance $\Delta = 0.0$.</td>
+        <td><strong>2. Hybrid Match &amp; Scoring Engine</strong></td>
+        <td>Computes the 6-part weighted formula (0.40 Skills + 0.20 Experience + 0.15 Projects + 0.10 Education + 0.10 Responsibilities + 0.05 Evidence); extracts quotes; flags gaps.</td>
+        <td><span class="badge-pass">Working</span></td>
+        <td>Uses <code>P2_SCORER</code> (T=0.1); score difference on identical inputs = 0.0.</td>
       </tr>
       <tr>
         <td><strong>3. Resume Bullet Point Rewriter</strong></td>
         <td>Transforms weak bullets into STAR-format achievements without fabricating facts.</td>
-        <td><strong>Working</strong></td>
-        <td>Uses <code>P3_REWRITER</code> ($T=0.2$) with 2 few-shot demonstration examples.</td>
+        <td><span class="badge-pass">Working</span></td>
+        <td>Uses <code>P3_REWRITER</code> (T=0.2) with 2 few-shot demonstration examples.</td>
+      </tr>
+      <tr>
+        <td><strong>4. AI Interview Question Generator</strong></td>
+        <td>Plans role-specific interview questions from the job and resume, scores answers on a 6-part rubric, supports English, Hindi and Hinglish.</td>
+        <td><span class="badge-part">Partly working</span></td>
+        <td>Question planning and scoring work; the full voice (speech-to-text and text-to-speech) flow is still being hardened for Milestone 3.</td>
       </tr>
     </tbody>
   </table>
+  <p><strong>Overall prototype status: some modules working</strong> (3 of 4 fully working, 1 partly working).</p>
 
   <h2>3.2 Prompt Iteration Log</h2>
   <table>
@@ -269,10 +220,11 @@ Do NOT invent metrics, percentages, or unmentioned tools. Start with strong acti
         <td><strong>v3 (Final)</strong></td>
         <td>Decomposed into 3 chained prompts (<code>P1</code>, <code>P2</code>, <code>P3</code>); set temperature to 0.1; added few-shot grounding and strict negative constraints.</td>
         <td>JSON parsing crashes; need for zero hallucination and clear separation of extraction, math, and rewriting.</td>
-        <td><strong>100% reliable execution:</strong> Valid JSON in <strong>10 out of 10 runs</strong> (0 parser errors). Zero hallucinated skills. Score variance on identical inputs dropped to <strong>0.0 difference</strong>.</td>
+        <td><strong>Reliable execution:</strong> Valid JSON in <strong>10 out of 10 runs</strong> (0 parser errors). Zero hallucinated skills. Score variance on identical inputs dropped to <strong>0.0 difference</strong>.</td>
       </tr>
     </tbody>
   </table>
+  <p>Total prompts in the final solution: <strong>3</strong>. Total prompt versions recorded: <strong>3</strong> (v1, v2, v3/final).</p>
 
   <h3>Full Text of v1 Baseline (Milestone 1)</h3>
   <pre>Act as a resume reviewer. Compare the given resume with the job description. Identify matching skills, missing skills, and areas for improvement. Suggest 2–3 improved resume bullet points based only on the candidate’s actual experience. Give a match score out of 100 with clear reasons. Do not invent qualifications or experience.
@@ -320,7 +272,7 @@ Job Description: Data Analyst Intern requiring Python, SQL, Excel, and data visu
         <td>Role: Backend Developer &bull; Resume: Python, FastAPI; no Docker/Redis</td>
         <td>Normal</td>
         <td>Score 60-68; match Python/FastAPI; flag missing Redis/Docker.</td>
-        <td>Score: 64/100; flagged missing Docker & Redis without hallucination.</td>
+        <td>Score: 64/100; flagged missing Docker &amp; Redis without hallucination.</td>
         <td><span class="badge-pass">Pass</span></td>
       </tr>
       <tr>
@@ -381,46 +333,54 @@ Job Description: Data Analyst Intern requiring Python, SQL, Excel, and data visu
       </tr>
     </tbody>
   </table>
+  <p><strong>Summary:</strong> 10 test inputs (7 normal, 2 edge, 1 invalid): 8 Pass, 2 Fail.</p>
 
   <h2>4.2 Error Analysis on Failed Tests</h2>
   <p><strong>Test 8 (Hinglish Failure):</strong> When presented with code-mixed vernacular, the model correctly identified technical entities but mirrored the candidate's conversational dialect in its output explanation. <em>Fix for M3:</em> Implement a pre-LLM language routing rule and enforce <code>OUTPUT_LANGUAGE: STRICT_ENGLISH</code>.</p>
   <p><strong>Test 10 (Single-word "idk" Failure):</strong> Generative LLMs exhibit positive completion bias, attempting to extract meaning from noise. <em>Fix for M3:</em> Implement a deterministic character length guard (&ge; 150 characters) prior to LLM invocation.</p>
 
-  <h2>4.3 Known Limitations & Next Steps</h2>
+  <h2>4.3 Known Limitations &amp; Next Steps</h2>
   <p>1. <strong>Multi-Column PDF Flattening:</strong> Standard parsers scramble 2-column resumes. <em>Next Step:</em> Introduce bounding-box OCR in Milestone 3.</p>
-  <p>2. <strong>Pipeline Latency:</strong> 3 sequential calls require 4.5–7.0s. <em>Next Step:</em> Concurrently execute <code>P2</code> and <code>P3</code> after <code>P1</code> resolves.</p>
+  <p>2. <strong>Pipeline Latency:</strong> 3 sequential calls require 4.5&ndash;7.0s. <em>Next Step:</em> Concurrently execute <code>P2</code> and <code>P3</code> after <code>P1</code> resolves.</p>
   <p>3. <strong>Floating-Point Precision:</strong> Models occasionally make minor rounding errors. <em>Next Step:</em> Move final weighting to deterministic backend math.</p>
+  <p>4. <strong>Service Hardening:</strong> The FastAPI service currently allows all origins and the Gemini key is sent in the request URL. <em>Next Step:</em> Restrict allowed origins to the app domain and send keys in a request header.</p>
+  <p>5. <strong>Voice Interview Module:</strong> Speech-to-text and text-to-speech flow is partly working. <em>Next Step:</em> Finish end-to-end testing and add automated tests for the AI endpoints.</p>
 
   <div class="page-break"></div>
 
   <!-- SECTION 5: REPOSITORY -->
   <h1 class="sec-header">Section 5: Repository</h1>
-  <p><strong>Repository URL:</strong> <a href="https://github.com/samanyu22/C9-Resume-Reviewer">https://github.com/samanyu22/C9-Resume-Reviewer</a> (Public)</p>
+  <p><strong>Repository URL:</strong> <a href="https://github.com/harshhhhd/ResumeX">https://github.com/harshhhhd/ResumeX</a> (Public)</p>
   <pre>
-C9-Resume-Reviewer/
-├── README.md               # Setup instructions, live prototype link, member list
+ResumeX/
+├── README.md               # Project overview and setup instructions
 ├── CHANGELOG.md            # Dated changes from Milestone 1 to Milestone 2
 ├── prompts/
 │   ├── v1/                 # Initial Milestone 1 baseline prompt
 │   ├── v2/                 # Intermediate rubric & JSON prompt
 │   ├── v3/                 # Few-shot calibrated prompt draft
-│   └── final/              # Final production prompts (P1_parser, P2_scorer, P3_rewriter)
-├── test-data/              # 10 test case inputs & saved model outputs
-└── docs/                   # Architecture diagrams & Milestone 2 submission PDFs
+│   └── final/              # Final prompts (P1_parser, P2_scorer, P3_rewriter)
+├── AI/                     # FastAPI job-structuring service (structuring_service.py, alias_normalization.py, models.py)
+├── src/                    # React 19 + TanStack Start app (routes, components, lib, server, test)
+├── supabase/               # Database migrations and permission scripts
+├── scripts/                # Helper scripts (auth, storage and Gemini key checks)
+├── test-data/              # 10 test case inputs & saved model outputs (test_suite.json)
+└── docs/                   # Technical report and Milestone 2 reports
   </pre>
   <h3>What Changed Since Milestone 1 (Progress Summary)</h3>
   <ul>
     <li>Replaced the single monolithic baseline prompt with a <strong>3-stage prompt pipeline</strong> (<code>P1</code>, <code>P2</code>, <code>P3</code>) with strict JSON output schemas.</li>
-    <li>Implemented a <strong>6-component mathematical scoring rubric</strong> ($0.40 \cdot \text{Skills} + \dots$) eliminating inter-run score drift.</li>
+    <li>Implemented a <strong>6-component mathematical scoring rubric</strong> (0.40 Skills + 0.20 Experience + 0.15 Projects + 0.10 Education + 0.10 Responsibilities + 0.05 Evidence), eliminating inter-run score drift.</li>
     <li>Created a standardized repository structure with versioned prompt lineage (<code>prompts/v1</code>, <code>v2</code>, <code>v3</code>, <code>final</code>) and a dated <code>CHANGELOG.md</code>.</li>
-    <li>Formulated a <strong>10-case test suite</strong> including edge and invalid inputs with documented failure mode analyses.</li>
-    <li>Enforced few-shot grounding and explicit negative constraints to achieve 100% verified zero-hallucination bullet point rewriting.</li>
+    <li>Formulated a <strong>10-case test suite</strong> including edge and invalid inputs with documented failure-mode analyses (8 passed, 2 failed).</li>
+    <li>Enforced few-shot grounding and explicit negative constraints for zero-hallucination bullet point rewriting.</li>
+    <li>Built the working web prototype: authentication, job posting, resume upload and analysis, and the first version of the AI interview module.</li>
   </ul>
 
   <!-- SECTION 6: SUPPORTING DOCUMENT -->
   <h1 class="sec-header">Section 6: Supporting Document (Technical Report)</h1>
-  <p><em>(Embedded copy of the Technical Report submitted at Q16)</em></p>
-  <p><strong>Executive Summary:</strong> Manual resume screening creates operational bottlenecks, while opaque scoring algorithms alienate applicants. This report presents an auditable, prompt-engineered pipeline for Problem C9: AI-Powered Resume Reviewer. We decompose recruitment evaluation into: (1) Entity Extraction & Alias Normalization (<code>P1_PARSER</code>), (2) Weighted Multi-Factor Scoring & Evidence Grounding (<code>P2_SCORER</code>), and (3) Truthful STAR-Method Bullet Enhancement (<code>P3_REWRITER</code>). Evaluated across 10 diverse test inputs, the pipeline achieved 100% JSON reliability, zero inter-run score drift, and prohibited hallucinated qualifications.</p>
+  <p><em>(Embedded copy of the Technical Report submitted at Q16: ResumeX_TechnicalReport.pdf)</em></p>
+  <p><strong>Executive Summary:</strong> Manual resume screening creates operational bottlenecks, while opaque scoring algorithms alienate applicants. This report presents an auditable, prompt-engineered pipeline for Problem C9: AI-Powered Resume Reviewer. We decompose recruitment evaluation into: (1) Entity Extraction &amp; Alias Normalization (<code>P1_PARSER</code>), (2) Weighted Multi-Factor Scoring &amp; Evidence Grounding (<code>P2_SCORER</code>), and (3) Truthful STAR-Method Bullet Enhancement (<code>P3_REWRITER</code>). Evaluated across 10 diverse test inputs, 8 passed; after decomposition the pipeline returned valid JSON in 10 of 10 repeated runs, showed zero inter-run score drift, and produced no hallucinated qualifications.</p>
   <p><strong>Key Highlights:</strong> Mathematical 6-component scoring formula, strict alias normalization dictionary, Gemini 2.5 Flash low-temperature inference, and transparent documentation of failure modes on Hinglish and single-word inputs.</p>
 
   <!-- SECTION 7: TEAM CONTRIBUTION TABLE -->
@@ -439,34 +399,34 @@ C9-Resume-Reviewer/
     <tbody>
       <tr>
         <td><strong>Harsh Dhiman (Lead)</strong></td>
-        <td><strong>S24CSEU2329</strong></td>
-        <td>Prompt Architecture & Lead</td>
-        <td>Designed pipeline architecture, authored <code>P1_PARSER</code> and <code>P2_SCORER</code>, locked temperature to 0.1, maintained prompt iteration log v1–v3, and drafted mathematical scoring formulation.</td>
+        <td>S24CSEU2329</td>
+        <td>Prompt Architecture &amp; Lead</td>
+        <td>Designed pipeline architecture, authored <code>P1_PARSER</code> and <code>P2_SCORER</code>, locked temperature to 0.1, maintained prompt iteration log v1&ndash;v3, and drafted mathematical scoring formulation.</td>
         <td><code>prompts/final/P1_parser.md</code>, <code>prompts/final/P2_scorer.md</code>, <code>prompts/v1/</code>, <code>prompts/v2/</code>, git commits</td>
         <td><strong>25%</strong></td>
       </tr>
       <tr>
         <td><strong>Deepanshi Pokhriyal</strong></td>
-        <td><strong>S24CSEU2688</strong></td>
-        <td>Prompt Engineering (Rewriter) & Testing</td>
+        <td>S24CSEU2688</td>
+        <td>Prompt Engineering (Rewriter) &amp; Testing</td>
         <td>Developed <code>P3_REWRITER</code>, curated STAR-method few-shot demonstration examples, formulated anti-hallucination negative constraints, and validated test suite edge cases.</td>
         <td><code>prompts/final/P3_rewriter.md</code>, <code>prompts/v3/P1_calibrated_fewshot.md</code>, <code>test-data/test_suite.json</code>, git commits</td>
         <td><strong>25%</strong></td>
       </tr>
       <tr>
         <td><strong>Kartik Nagar</strong></td>
-        <td><strong>S24CSEU1960</strong></td>
-        <td>Backend & Integration</td>
+        <td>S24CSEU1960</td>
+        <td>Backend &amp; Integration</td>
         <td>Configured AI structuring service, implemented prompt chaining orchestration, sliding-window rate limiting, JSON error recovery, and system architecture diagrams.</td>
-        <td><code>AI/structuring_service.py</code>, <code>AI/alias_normalization.py</code>, <code>AI/models.py</code>, <code>docs/BastionBytes_TechnicalReport.*</code>, git commits</td>
+        <td><code>AI/structuring_service.py</code>, <code>AI/alias_normalization.py</code>, <code>AI/models.py</code>, <code>docs/BastionBytes_TechnicalReport.md</code>, git commits</td>
         <td><strong>25%</strong></td>
       </tr>
       <tr>
         <td><strong>Devansh Khanna</strong></td>
-        <td><strong>S24CSEU0830</strong></td>
-        <td>Frontend & Prototype UI</td>
+        <td>S24CSEU0830</td>
+        <td>Frontend &amp; Prototype UI</td>
         <td>Built candidate application intake interface, resume upload card, multi-step analyzing progress bar, dark theme design token integration, and CHANGELOG documentation.</td>
-        <td><code>src/components/analyzer/ResumeUploadCard.tsx</code>, <code>src/routes/jobs.$jobId.apply.tsx</code>, <code>CHANGELOG.md</code>, <code>docs/REEL_SCRIPT.md</code>, git commits</td>
+        <td><code>src/components/analyzer/ResumeUploadCard.tsx</code>, <code>src/routes/jobs.$jobId.apply.tsx</code>, <code>CHANGELOG.md</code>, git commits</td>
         <td><strong>25%</strong></td>
       </tr>
       <tr>
