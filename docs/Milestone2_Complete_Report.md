@@ -6,14 +6,14 @@
 
 # SECTION 1: COVER PAGE
 
-- **Team ID:** T42 *(Use the exact assigned ID from your LMS/email notification)*
+- **Team ID:** PE-B49-40
 - **Team Name:** ResumeX
 - **Project Title:** AI-Powered Resume Reviewer: Resume Feedback Against a Job Description (Problem Pool C9)
 - **Batch / Group:** B49 - B64
 - **Course Code & Title:** SCSE4041 — Prompt Engineering
 
 ### Team Members & Details
-| S.No | Name | Enrollment No. | Institutional Email ID | Role |
+| S.No | Name | Enrollment No. | Institutional Email ID |
 | :---: | :--- | :---: | :--- | :--- |
 | **1** | Kartik Nagar | S24CSEU1960 | S24CSEU1960@bennett.edu.in |
 | **2** | Harsh Dhiman | S24CSEU2329 | S24CSEU2329@bennett.edu.in |
