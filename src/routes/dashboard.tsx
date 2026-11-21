@@ -1,0 +1,730 @@
+import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
+import { useState, useEffect, useMemo, useCallback } from "react";
+import {
+  Plus,
+  Search,
+  Briefcase,
+  Inbox,
+  User,
+  Sparkles,
+  CheckCircle2,
+  ShieldCheck,
+  Bookmark,
+  SlidersHorizontal,
+} from "lucide-react";
+import { supabase, fetchUserProfile } from "@/lib/supabase";
+import type { Profile, Job } from "@/types/database.types";
+import { JobCard } from "@/components/JobCard";
+import { JobDetailPanel } from "@/components/JobDetailPanel";
+import { AddJobModal } from "@/components/AddJobModal";
+import { EditJobModal } from "@/components/EditJobModal";
+import ProfileDropdown from "@/components/kokonutui/profile-dropdown";
+import { useApplications } from "@/hooks/useApplications";
+import type { ApplicationRecord } from "@/lib/applications";
+import { getCandidatesForJob } from "@/lib/recruiter-candidates";
+
+export const Route = createFileRoute("/dashboard")({
+  head: () => ({
+    meta: [
+      { title: "Dashboard — EigenHire" },
+      {
+        name: "description",
+        content: "EigenHire AI recruitment & candidate workspace.",
+      },
+    ],
+  }),
+  component: DashboardPage,
+});
+
+function DashboardPage() {
+  const navigate = useNavigate();
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  // Jobs state
+  const [jobs, setJobs] = useState<Job[]>([]);
+  const [jobsLoading, setJobsLoading] = useState(true);
+  const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
+
+  // Modals state
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [editingJob, setEditingJob] = useState<Job | null>(null);
+
+  // Filters
+  const [searchQuery, setSearchQuery] = useState("");
+  const [recruiterTab, setRecruiterTab] = useState<"all" | "published" | "draft">("all");
+  const [studentWorkModeFilter, setStudentWorkModeFilter] = useState<string>("all");
+  const [isAppliedFilterActive, setIsAppliedFilterActive] = useState<boolean>(false);
+
+  // Applications store subscription
+  const { applications } = useApplications(profile?.id || "guest_student");
+
+  const applicationsMap = useMemo(() => {
+    const map = new Map<string, ApplicationRecord>();
+    applications.forEach((app) => map.set(app.jobId, app));
+    return map;
+  }, [applications]);
+
+  const appliedCount = useMemo(() => {
+    return jobs.filter((j) => applicationsMap.has(j.id)).length;
+  }, [jobs, applicationsMap]);
+
+  // Recruiter applicant counts per job
+  const [recruiterApplicantCounts, setRecruiterApplicantCounts] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    if (profile?.role === "recruiter" && jobs.length > 0) {
+      jobs.forEach((job) => {
+        getCandidatesForJob(job.id, job.title).then((cands) => {
+          setRecruiterApplicantCounts((prev) => ({
+            ...prev,
+            [job.id]: cands.length,
+          }));
+        });
+      });
+    }
+  }, [profile?.role, jobs]);
+
+  // Bookmarks store (separate concept from Applied)
+  const [bookmarkedIds, setBookmarkedIds] = useState<Set<string>>(() => {
+    if (typeof window === "undefined") return new Set();
+    try {
+      const raw = localStorage.getItem("eigenhire_saved_jobs");
+      return raw ? new Set(JSON.parse(raw)) : new Set();
+    } catch {
+      return new Set();
+    }
+  });
+
+  const handleToggleBookmark = useCallback((jobId: string) => {
+    setBookmarkedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(jobId)) next.delete(jobId);
+      else next.add(jobId);
+      if (typeof window !== "undefined") {
+        localStorage.setItem("eigenhire_saved_jobs", JSON.stringify(Array.from(next)));
+      }
+      return next;
+    });
+  }, []);
+
+  useEffect(() => {
+    async function loadSessionAndProfile() {
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+
+        if (!user) {
+          navigate({ to: "/login" });
+          return;
+        }
+
+        const userProfile = await fetchUserProfile(user.id);
+        if (!userProfile) {
+          navigate({ to: "/login" });
+          return;
+        }
+
+        // Student avatar onboarding guard
+        if (userProfile.role === "student" && !userProfile.avatar_step_done) {
+          navigate({ to: "/signup/photo" });
+          return;
+        }
+
+        setProfile(userProfile);
+      } catch (err) {
+        console.error("Dashboard profile load error:", err);
+        navigate({ to: "/login" });
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadSessionAndProfile();
+  }, [navigate]);
+
+  // Load jobs based on role
+  const loadJobs = useCallback(async () => {
+    if (!profile) return;
+    setJobsLoading(true);
+
+    try {
+      if (profile.role === "recruiter") {
+        // Recruiters see all their own listings (draft & published)
+        const { data, error } = await supabase
+          .from("jobs")
+          .select("*")
+          .eq("recruiter_id", profile.id)
+          .order("created_at", { ascending: false });
+
+        if (error) throw error;
+        setJobs((data as Job[]) || []);
+        if (data && data.length > 0 && !selectedJobId) {
+          setSelectedJobId(data[0].id);
+        }
+      } else {
+        // Students see published jobs ONLY (never drafts)
+        const { data, error } = await supabase
+          .from("jobs")
+          .select("*")
+          .eq("status", "published")
+          .order("created_at", { ascending: false });
+
+        if (error) throw error;
+        setJobs((data as Job[]) || []);
+        if (data && data.length > 0 && !selectedJobId) {
+          setSelectedJobId(data[0].id);
+        }
+      }
+    } catch (err) {
+      console.error("Error loading jobs:", err);
+    } finally {
+      setJobsLoading(false);
+    }
+  }, [profile, selectedJobId]);
+
+  useEffect(() => {
+    if (profile) {
+      loadJobs();
+    }
+  }, [profile, loadJobs]);
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    navigate({ to: "/login" });
+  };
+
+  // Recruiter: Toggle job publication status (draft <-> published)
+  const handleToggleJobStatus = async (job: Job) => {
+    const nextStatus = job.status === "draft" ? "published" : "draft";
+    try {
+      const { data, error } = await supabase
+        .from("jobs")
+        .update({ status: nextStatus })
+        .eq("id", job.id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      setJobs((prev) => prev.map((j) => (j.id === job.id ? (data as Job) : j)));
+    } catch (err) {
+      console.error("Toggle job status error:", err);
+    }
+  };
+
+  // Recruiter: Delete job listing
+  const handleDeleteJob = async (job: Job) => {
+    if (!confirm(`Are you sure you want to delete "${job.title}"?`)) return;
+
+    try {
+      const { error } = await supabase.from("jobs").delete().eq("id", job.id);
+      if (error) throw error;
+
+      setJobs((prev) => {
+        const next = prev.filter((j) => j.id !== job.id);
+        if (selectedJobId === job.id) {
+          setSelectedJobId(next.length > 0 ? next[0].id : null);
+        }
+        return next;
+      });
+    } catch (err) {
+      console.error("Delete job error:", err);
+    }
+  };
+
+  // Filtered jobs
+  const filteredJobs = useMemo(() => {
+    return jobs.filter((job) => {
+      // Search matching title, company, or location
+      const q = searchQuery.toLowerCase().trim();
+      const titleMatch = job.title.toLowerCase().includes(q);
+      const companyMatch = job.company_name.toLowerCase().includes(q);
+      const locationMatch = (job.location || "").toLowerCase().includes(q);
+
+      const matchesSearch = !q || titleMatch || companyMatch || locationMatch;
+      if (!matchesSearch) return false;
+
+      // Recruiter tab filter
+      if (profile?.role === "recruiter") {
+        if (recruiterTab === "published" && job.status !== "published") return false;
+        if (recruiterTab === "draft" && job.status !== "draft") return false;
+      }
+
+      // Student filters
+      if (profile?.role === "student") {
+        // "Applied" filter narrows to jobs with an application
+        if (isAppliedFilterActive && !applicationsMap.has(job.id)) {
+          return false;
+        }
+
+        // Work mode filter works alongside "Applied"
+        if (studentWorkModeFilter !== "all") {
+          if ((job.work_mode || "").toLowerCase() !== studentWorkModeFilter) {
+            return false;
+          }
+        }
+      }
+
+      return true;
+    });
+  }, [
+    jobs,
+    searchQuery,
+    recruiterTab,
+    isAppliedFilterActive,
+    studentWorkModeFilter,
+    profile,
+    applicationsMap,
+  ]);
+
+  const selectedJob = useMemo(() => {
+    if (!selectedJobId) return filteredJobs[0] || null;
+    return filteredJobs.find((j) => j.id === selectedJobId) || filteredJobs[0] || null;
+  }, [selectedJobId, filteredJobs]);
+
+  if (loading || !profile) {
+    return (
+      <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center p-4">
+        <div className="flex flex-col items-center gap-3">
+          <div className="h-6 w-6 animate-spin rounded-full border-2 border-[rgba(255,255,255,0.2)] border-t-[#f5f5f5]" />
+          <p className="text-[14px] text-[#8a8a8a] font-[450]">Loading dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
+  const isRecruiter = profile.role === "recruiter";
+  const isStudent = profile.role === "student";
+
+  return (
+    <div className="relative min-h-screen bg-[#0a0a0a] text-[#f5f5f5] flex flex-col justify-between selection:bg-[#f5f5f5] selection:text-[#0a0a0a]">
+      {/* Background Dot Grid */}
+      <div aria-hidden className="dot-grid fixed inset-0 pointer-events-none opacity-40 z-0" />
+
+      {/* Atmospheric ambient top glow */}
+      <div
+        aria-hidden
+        className="pointer-events-none fixed -top-40 left-1/2 -z-10 h-[500px] w-[800px] -translate-x-1/2 rounded-full bg-gradient-to-b from-blue-600/8 via-indigo-600/4 to-transparent blur-[140px]"
+      />
+
+      {/* Main Workspace */}
+      <main className="relative z-10 flex-1 max-w-[1240px] w-full mx-auto px-4 pt-6 sm:pt-8 pb-10 space-y-6">
+        {/* Workspace Top Header Bar */}
+        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 border-b border-[rgba(255,255,255,0.08)] pb-6">
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <Link to="/" className="flex items-center gap-2 group">
+                <div className="flex h-6 w-6 items-center justify-center rounded-[30%] bg-[#f5f5f5] transition-transform group-hover:scale-105">
+                  <img src="/logo.png" alt="EigenHire" className="h-3.5 w-3.5 object-contain brightness-0" />
+                </div>
+                <span className="text-[14px] font-[650] text-[#f5f5f5] tracking-tight">
+                  EigenHire
+                </span>
+              </Link>
+              <span className="inline-block text-[11px] font-[700] font-mono px-2.5 py-0.5 rounded-md bg-blue-500/15 text-blue-400 border border-blue-500/30 uppercase tracking-wide">
+                {isRecruiter ? "RECRUITER" : "STUDENT"}
+              </span>
+            </div>
+            <h1 className="text-[28px] sm:text-[34px] font-[650] tracking-tight text-[#f5f5f5] leading-tight">
+              {isRecruiter ? "Recruiter Workspace." : "Jobs for you."}
+            </h1>
+            <p className="mt-1 text-[14px] sm:text-[15px] font-[450] text-[#8a8a8a]">
+              {isRecruiter
+                ? "Structure job listings with AI, define requirement rubrics, and manage role pipelines."
+                : "Explore verified role openings with explicit requirement matrices and direct application."}
+            </p>
+          </div>
+
+          {/* Right Controls: Add listing (Recruiter) + KokonutUI Profile Dropdown */}
+          <div className="flex items-center gap-3 self-end sm:self-center shrink-0">
+            {isRecruiter && (
+              <button
+                type="button"
+                onClick={() => setIsAddModalOpen(true)}
+                className="inline-flex h-11 items-center gap-2 rounded-xl bg-gradient-to-b from-[#2563eb] to-[#1d4ed8] hover:from-[#3b82f6] hover:to-[#2563eb] px-6 text-[14px] font-[600] text-white shadow-[0_0_20px_rgba(37,99,235,0.4),inset_0_1px_0_0_rgba(255,255,255,0.35)] transition-all active:scale-[0.98] shrink-0 border border-blue-400/30"
+              >
+                <Plus size={16} />
+                <span>Add listing</span>
+              </button>
+            )}
+
+            <ProfileDropdown
+              accounts={[
+                {
+                  id: profile.id,
+                  name: profile.full_name,
+                  email: profile.email,
+                  avatar_url: profile.avatar_url,
+                  plan: isRecruiter ? "Recruiter" : "Student",
+                },
+              ]}
+              defaultAccountId={profile.id}
+              items={
+                isStudent
+                  ? [
+                      {
+                        label: "Profile",
+                        icon: <User className="size-4" />,
+                        href: `/student/${profile.username}`,
+                      },
+                      {
+                        label: "Dashboard",
+                        icon: <Briefcase className="size-4" />,
+                        href: "/dashboard",
+                      },
+                    ]
+                  : [
+                      {
+                        label: "Dashboard",
+                        icon: <Briefcase className="size-4" />,
+                        href: "/dashboard",
+                      },
+                    ]
+              }
+              onSignOut={handleLogout}
+            />
+          </div>
+        </div>
+
+        {/* Modern Workspace KPI Ribbon */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          <div className="rounded-[18px] border border-white/[0.08] bg-[#121214]/70 p-4 backdrop-blur-xl transition-all hover:border-white/[0.18] shadow-[0_4px_20px_rgba(0,0,0,0.35),inset_0_1px_0_0_rgba(255,255,255,0.06)]">
+            <div className="flex items-center justify-between text-[11px] font-[600] text-[#8a8a8a] uppercase tracking-wider mb-2">
+              <span>{isRecruiter ? "Active Pipeline" : "Verified Roles"}</span>
+              <Briefcase size={14} className="text-[#0066ff]" />
+            </div>
+            <div className="flex items-baseline gap-2">
+              <span className="text-[26px] font-[650] text-[#f5f5f5] tracking-tight">
+                {isRecruiter ? jobs.filter((j) => j.status === "published").length : jobs.filter((j) => j.status === "published").length}
+              </span>
+              <span className="text-[12px] font-[500] text-emerald-400">
+                {isRecruiter ? `${jobs.length} total` : "active openings"}
+              </span>
+            </div>
+          </div>
+
+          <div className="rounded-[18px] border border-white/[0.08] bg-[#121214]/70 p-4 backdrop-blur-xl transition-all hover:border-white/[0.18] shadow-[0_4px_20px_rgba(0,0,0,0.35),inset_0_1px_0_0_rgba(255,255,255,0.06)]">
+            <div className="flex items-center justify-between text-[11px] font-[600] text-[#8a8a8a] uppercase tracking-wider mb-2">
+              <span>{isRecruiter ? "Audited Applicants" : "Applications"}</span>
+              <CheckCircle2 size={14} className="text-emerald-400" />
+            </div>
+            <div className="flex items-baseline gap-2">
+              <span className="text-[26px] font-[650] text-[#f5f5f5] tracking-tight">
+                {isRecruiter ? Object.values(recruiterApplicantCounts).reduce((a, b) => a + b, 0) : appliedCount}
+              </span>
+              <span className="text-[12px] font-[500] text-[#8a8a8a]">
+                {isRecruiter ? "candidates tracked" : "submitted"}
+              </span>
+            </div>
+          </div>
+
+          <div className="rounded-[18px] border border-white/[0.08] bg-[#121214]/70 p-4 backdrop-blur-xl transition-all hover:border-white/[0.18] shadow-[0_4px_20px_rgba(0,0,0,0.35),inset_0_1px_0_0_rgba(255,255,255,0.06)]">
+            <div className="flex items-center justify-between text-[11px] font-[600] text-[#8a8a8a] uppercase tracking-wider mb-2">
+              <span>{isRecruiter ? "Structuring Engine" : "Saved Openings"}</span>
+              <Sparkles size={14} className="text-[#0066ff]" />
+            </div>
+            <div className="flex items-baseline gap-2">
+              <span className="text-[26px] font-[650] text-[#f5f5f5] tracking-tight">
+                {isRecruiter ? "v2.4" : bookmarkedIds.size}
+              </span>
+              <span className="text-[12px] font-[500] text-emerald-400">
+                {isRecruiter ? "Gemini + Fallback" : "bookmarked"}
+              </span>
+            </div>
+          </div>
+
+          <div className="rounded-[18px] border border-white/[0.08] bg-[#121214]/70 p-4 backdrop-blur-xl transition-all hover:border-white/[0.18] shadow-[0_4px_20px_rgba(0,0,0,0.35),inset_0_1px_0_0_rgba(255,255,255,0.06)]">
+            <div className="flex items-center justify-between text-[11px] font-[600] text-[#8a8a8a] uppercase tracking-wider mb-2">
+              <span>Evidence Protocol</span>
+              <ShieldCheck size={14} className="text-[#0066ff]" />
+            </div>
+            <div className="flex items-baseline gap-2">
+              <span className="text-[26px] font-[650] text-[#f5f5f5] tracking-tight">
+                100%
+              </span>
+              <span className="text-[12px] font-[500] text-[#8a8a8a]">
+                verifiable citations
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Filter & Search Bar */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 p-2 rounded-[20px] bg-[#121214]/80 border border-white/[0.08] backdrop-blur-xl shadow-[0_4px_24px_rgba(0,0,0,0.4)]">
+          {/* Search Box */}
+          <div className="relative flex-1 max-w-md">
+            <Search
+              size={15}
+              className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#707070]"
+            />
+            <input
+              type="text"
+              placeholder={
+                isRecruiter
+                  ? "Search your job listings by role or tech..."
+                  : "Search roles, companies, tech, or location..."
+              }
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full h-10 pl-9 pr-4 rounded-[14px] bg-[#17171a] border border-white/[0.08] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.06)] text-[13px] text-[#f5f5f5] placeholder-[#5c5c5c] focus:outline-none focus:border-white/30 focus:ring-1 focus:ring-white/20 transition-all"
+            />
+          </div>
+
+          {/* Role-Specific Filter Pills */}
+          {isRecruiter ? (
+            <div className="flex items-center gap-1.5 self-start sm:self-auto px-1">
+              <button
+                type="button"
+                onClick={() => setRecruiterTab("all")}
+                className={`h-9 px-4 rounded-full text-[12px] font-[600] transition-all cursor-pointer ${
+                  recruiterTab === "all"
+                    ? "bg-[#f5f5f5] text-[#0a0a0a] shadow-[0_2px_12px_rgba(255,255,255,0.2)]"
+                    : "bg-[#18181b] text-[#8a8a8a] border border-white/[0.06] hover:text-[#f5f5f5] hover:border-white/[0.15]"
+                }`}
+              >
+                All ({jobs.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setRecruiterTab("published")}
+                className={`h-9 px-4 rounded-full text-[12px] font-[600] transition-all cursor-pointer ${
+                  recruiterTab === "published"
+                    ? "bg-[#f5f5f5] text-[#0a0a0a] shadow-[0_2px_12px_rgba(255,255,255,0.2)]"
+                    : "bg-[#18181b] text-[#8a8a8a] border border-white/[0.06] hover:text-[#f5f5f5] hover:border-white/[0.15]"
+                }`}
+              >
+                Published ({jobs.filter((j) => j.status === "published").length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setRecruiterTab("draft")}
+                className={`h-9 px-4 rounded-full text-[12px] font-[600] transition-all cursor-pointer ${
+                  recruiterTab === "draft"
+                    ? "bg-[#f5f5f5] text-[#0a0a0a] shadow-[0_2px_12px_rgba(255,255,255,0.2)]"
+                    : "bg-[#18181b] text-[#8a8a8a] border border-white/[0.06] hover:text-[#f5f5f5] hover:border-white/[0.15]"
+                }`}
+              >
+                Drafts ({jobs.filter((j) => j.status === "draft").length})
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-1.5 self-start sm:self-auto flex-wrap px-1">
+              {/* "Applied" Filter Pill with Tabular Count */}
+              <button
+                type="button"
+                onClick={() => setIsAppliedFilterActive(!isAppliedFilterActive)}
+                className={`h-9 px-4 rounded-full text-[12px] font-[600] transition-all inline-flex items-center gap-1.5 cursor-pointer ${
+                  isAppliedFilterActive
+                    ? "bg-[#f5f5f5] text-[#0a0a0a] shadow-[0_2px_12px_rgba(255,255,255,0.2)]"
+                    : "bg-[#18181b] text-[#8a8a8a] border border-white/[0.06] hover:text-[#f5f5f5] hover:border-white/[0.15]"
+                }`}
+              >
+                <span>Applied</span>
+                {appliedCount > 0 && (
+                  <span className="tabular font-[600] text-[11px] opacity-90">{appliedCount}</span>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setStudentWorkModeFilter("all")}
+                className={`h-9 px-4 rounded-full text-[12px] font-[600] transition-all cursor-pointer ${
+                  studentWorkModeFilter === "all"
+                    ? "bg-[#f5f5f5] text-[#0a0a0a] shadow-[0_2px_12px_rgba(255,255,255,0.2)]"
+                    : "bg-[#18181b] text-[#8a8a8a] border border-white/[0.06] hover:text-[#f5f5f5] hover:border-white/[0.15]"
+                }`}
+              >
+                All modes
+              </button>
+              <button
+                type="button"
+                onClick={() => setStudentWorkModeFilter("remote")}
+                className={`h-9 px-4 rounded-full text-[12px] font-[600] transition-all cursor-pointer ${
+                  studentWorkModeFilter === "remote"
+                    ? "bg-[#f5f5f5] text-[#0a0a0a] shadow-[0_2px_12px_rgba(255,255,255,0.2)]"
+                    : "bg-[#18181b] text-[#8a8a8a] border border-white/[0.06] hover:text-[#f5f5f5] hover:border-white/[0.15]"
+                }`}
+              >
+                Remote
+              </button>
+              <button
+                type="button"
+                onClick={() => setStudentWorkModeFilter("hybrid")}
+                className={`h-9 px-4 rounded-full text-[12px] font-[600] transition-all cursor-pointer ${
+                  studentWorkModeFilter === "hybrid"
+                    ? "bg-[#f5f5f5] text-[#0a0a0a] shadow-[0_2px_12px_rgba(255,255,255,0.2)]"
+                    : "bg-[#18181b] text-[#8a8a8a] border border-white/[0.06] hover:text-[#f5f5f5] hover:border-white/[0.15]"
+                }`}
+              >
+                Hybrid
+              </button>
+              <button
+                type="button"
+                onClick={() => setStudentWorkModeFilter("onsite")}
+                className={`h-9 px-4 rounded-full text-[12px] font-[600] transition-all cursor-pointer ${
+                  studentWorkModeFilter === "onsite"
+                    ? "bg-[#f5f5f5] text-[#0a0a0a] shadow-[0_2px_12px_rgba(255,255,255,0.2)]"
+                    : "bg-[#18181b] text-[#8a8a8a] border border-white/[0.06] hover:text-[#f5f5f5] hover:border-white/[0.15]"
+                }`}
+              >
+                Onsite
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Master-Detail Layout (Desktop: List on Left, Detail Panel on Right) */}
+        {jobsLoading ? (
+          <div className="py-24 text-center">
+            <div className="inline-block h-6 w-6 animate-spin rounded-full border-2 border-[rgba(255,255,255,0.2)] border-t-[#f5f5f5]" />
+            <p className="mt-3 text-[14px] text-[#8a8a8a]">Loading job listings...</p>
+          </div>
+        ) : filteredJobs.length === 0 ? (
+          isAppliedFilterActive ? (
+            /* Calm empty state specifically for "Applied" */
+            <div className="rounded-[24px] bg-[#141414] border border-[rgba(255,255,255,0.08)] p-12 text-center space-y-4 max-w-lg mx-auto my-12">
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-[30%] bg-[#1a1a1a] text-[#8a8a8a]">
+                <Inbox size={24} />
+              </div>
+              <p className="text-[14px] text-[#8a8a8a]">You haven't applied to any roles yet.</p>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsAppliedFilterActive(false);
+                  setStudentWorkModeFilter("all");
+                }}
+                className="inline-flex h-10 items-center justify-center rounded-full bg-[#1a1a1a] border border-[rgba(255,255,255,0.12)] px-6 text-[13px] font-[600] text-[#f5f5f5] hover:bg-[#262626] transition-colors"
+              >
+                Browse all roles
+              </button>
+            </div>
+          ) : (
+            <div className="rounded-[24px] bg-[#141414] border border-[rgba(255,255,255,0.08)] p-12 text-center space-y-4 max-w-lg mx-auto my-12">
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-[30%] bg-[#1a1a1a] text-[#8a8a8a]">
+                <Inbox size={24} />
+              </div>
+              <div>
+                <h3 className="text-[18px] font-[650] text-[#f5f5f5]">
+                  {isRecruiter ? "No job listings yet." : "No published jobs found."}
+                </h3>
+                <p className="mt-1 text-[13px] text-[#8a8a8a] leading-relaxed">
+                  {isRecruiter
+                    ? "Click 'Add listing' to structure your first job description from raw text."
+                    : "Check back soon as recruiters publish verified positions to the feed."}
+                </p>
+              </div>
+              {isRecruiter && (
+                <button
+                  type="button"
+                  onClick={() => setIsAddModalOpen(true)}
+                  className="inline-flex h-10 items-center gap-2 rounded-full bg-[#f5f5f5] px-6 text-[13px] font-[600] text-[#0a0a0a] transition-all hover:bg-[#e0e0e0]"
+                >
+                  <Plus size={15} />
+                  <span>Add first listing</span>
+                </button>
+              )}
+            </div>
+          )
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+            {/* Left Column: Job Cards List View */}
+            <div className="lg:col-span-5 space-y-3.5 max-h-[82vh] overflow-y-auto pr-1">
+              {filteredJobs.map((job) => (
+                <JobCard
+                  key={job.id}
+                  job={job}
+                  isSelected={selectedJob?.id === job.id}
+                  onSelect={(j) => setSelectedJobId(j.id)}
+                  isRecruiter={isRecruiter}
+                  application={applicationsMap.get(job.id) || null}
+                  isBookmarked={bookmarkedIds.has(job.id)}
+                  onToggleBookmark={handleToggleBookmark}
+                  onEdit={(j) => setEditingJob(j)}
+                  onToggleStatus={(j) => handleToggleJobStatus(j)}
+                  applicantCount={recruiterApplicantCounts[job.id]}
+                />
+              ))}
+            </div>
+
+            {/* Right Column: Selected Job Detail Panel */}
+            <div className="hidden lg:block lg:col-span-7 sticky top-24 max-h-[82vh] overflow-y-auto">
+              {selectedJob ? (
+                <JobDetailPanel
+                  job={selectedJob}
+                  isRecruiter={isRecruiter}
+                  application={applicationsMap.get(selectedJob.id) || null}
+                  isBookmarked={bookmarkedIds.has(selectedJob.id)}
+                  onToggleBookmark={handleToggleBookmark}
+                  onEdit={(j) => setEditingJob(j)}
+                  onToggleStatus={(j) => handleToggleJobStatus(j)}
+                  onDelete={(j) => handleDeleteJob(j)}
+                />
+              ) : (
+                <div className="rounded-[24px] bg-[#141414] border border-[rgba(255,255,255,0.08)] p-12 text-center text-[#8a8a8a]">
+                  Select a job on the left to view details.
+                </div>
+              )}
+            </div>
+
+            {/* Mobile View: Modal / Sliding Panel for Selected Job */}
+            {selectedJob && (
+              <div className="block lg:hidden mt-6">
+                <JobDetailPanel
+                  job={selectedJob}
+                  isRecruiter={isRecruiter}
+                  application={applicationsMap.get(selectedJob.id) || null}
+                  isBookmarked={bookmarkedIds.has(selectedJob.id)}
+                  onToggleBookmark={handleToggleBookmark}
+                  onEdit={(j) => setEditingJob(j)}
+                  onToggleStatus={(j) => handleToggleJobStatus(j)}
+                  onDelete={(j) => handleDeleteJob(j)}
+                />
+              </div>
+            )}
+          </div>
+        )}
+      </main>
+
+      {/* Footer */}
+      <footer className="relative z-10 pb-8 pt-8 px-4 text-center border-t border-[rgba(255,255,255,0.06)] mt-12">
+        <p className="text-[12px] font-[450] text-[#707070]">
+          <span>© 2026 EigenHire Inc.</span>
+          <span className="mx-2">·</span>
+          <span>{isRecruiter ? "Recruiter Workspace" : "Candidate Feed"}</span>
+          <span className="mx-2">·</span>
+          <span>People make every decision.</span>
+        </p>
+      </footer>
+
+      {/* Recruiter "Add listing" Modal */}
+      {isAddModalOpen && (
+        <AddJobModal
+          isOpen={isAddModalOpen}
+          onClose={() => setIsAddModalOpen(false)}
+          recruiterId={profile.id}
+          defaultCompany={profile.company_name || ""}
+          onSuccess={(newJob) => {
+            setJobs((prev) => [newJob, ...prev]);
+            setSelectedJobId(newJob.id);
+          }}
+        />
+      )}
+
+      {/* Recruiter "Edit listing" Modal */}
+      {editingJob && (
+        <EditJobModal
+          job={editingJob}
+          isOpen={Boolean(editingJob)}
+          onClose={() => setEditingJob(null)}
+          onSuccess={(updatedJob) => {
+            setJobs((prev) => prev.map((j) => (j.id === updatedJob.id ? updatedJob : j)));
+            if (selectedJobId === updatedJob.id) {
+              setSelectedJobId(updatedJob.id);
+            }
+          }}
+        />
+      )}
+    </div>
+  );
+}

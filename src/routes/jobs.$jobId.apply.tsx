@@ -1,0 +1,648 @@
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useState, useEffect, useMemo } from "react";
+import {
+  ArrowLeft,
+  Briefcase,
+  MapPin,
+  Sparkles,
+  RefreshCw,
+  Building2,
+  CheckCircle2,
+  ShieldCheck,
+  ChevronRight,
+  FileText,
+} from "lucide-react";
+import { supabase } from "@/lib/supabase";
+import type { Job, StructuredJobListing } from "@/types/database.types";
+import { CompanyLogo } from "@/components/CompanyLogo";
+import { TechLogoTile } from "@/components/TechLogoTile";
+import { ResumeUploadCard, type ResumeUploadData } from "@/components/analyzer/ResumeUploadCard";
+import { AnalysisScoreCard } from "@/components/analyzer/AnalysisScoreCard";
+import { AnalysisStrengthsGaps } from "@/components/analyzer/AnalysisStrengthsGaps";
+import { RequirementMatrixCard } from "@/components/analyzer/RequirementMatrixCard";
+import {
+  analyzeResumeServerFn,
+  analyzeResumeDeterministically,
+  type ResumeAnalysisResult,
+} from "@/lib/ai-analyzer";
+import { MediaSessionProvider } from "@/hooks/useMediaSession";
+import {
+  recordJobOpened,
+  recordResumeUploaded,
+  getApplication,
+  findApplicationForJob,
+} from "@/lib/applications";
+
+export const Route = createFileRoute("/jobs/$jobId/apply")({
+  head: () => ({
+    meta: [
+      { title: "Resume Analyzer & Application — EigenHire" },
+      {
+        name: "description",
+        content: "Transparent AI resume matching, qualification audit, and compatibility fit.",
+      },
+    ],
+  }),
+  component: JobApplyPageWrapper,
+});
+
+function JobApplyPageWrapper() {
+  return (
+    <MediaSessionProvider>
+      <JobApplyPage />
+    </MediaSessionProvider>
+  );
+}
+
+// Fallback demo job when database has no record for the requested jobId
+const DEMO_JOB_FALLBACK: Job = {
+  id: "demo-frontend-engineer",
+  title: "Senior Frontend Engineer",
+  company_name: "TechFlow Innovations",
+  recruiter_id: "demo-recruiter",
+  created_at: new Date().toISOString(),
+  updated_at: new Date().toISOString(),
+  status: "published",
+  job_type: "Full-time",
+  location: "Bengaluru, India",
+  work_mode: "hybrid",
+  experience: "3+ years",
+  salary_min: 1800000,
+  salary_max: 2800000,
+  salary_currency: "INR",
+  salary_period: "year",
+  salary_display: "₹18,00,000 – ₹28,00,000 / year",
+  raw_input: null,
+  model_name: "EigenHire Hybrid Structurer",
+  prompt_version: "v1.0.0",
+  generated_posting: {
+    title: "Senior Frontend Engineer",
+    company: "TechFlow Innovations",
+    location: "Bengaluru, India",
+    work_mode: "hybrid",
+    employment_type: "Full-time",
+    experience: "3+ years",
+    salary: {
+      min: 1800000,
+      max: 2800000,
+      currency: "INR",
+      period: "year",
+      display: "₹18,00,000 – ₹28,00,000 / year",
+    },
+    about_role:
+      "Join TechFlow Innovations as a Senior Frontend Engineer to architect performant, accessible web applications and developer tools using React 19, TypeScript, and modern component systems.",
+    responsibilities: [
+      "Architect and build high-performance client web applications using React and TypeScript.",
+      "Implement accessible, WCAG-compliant design systems with Tailwind CSS and Framer Motion.",
+      "Integrate complex REST APIs with robust cache management using React Query / TanStack.",
+      "Collaborate with backend teams to establish clean API contracts and state synchronization.",
+    ],
+    qualifications: {
+      mandatory: [
+        "Strong production experience with modern TypeScript and React (3+ years).",
+        "Deep understanding of web performance, bundle optimization, and component lifecycle.",
+        "Demonstrated experience with RESTful API architecture and asynchronous state.",
+      ],
+      preferred: [
+        "Hands-on experience with Next.js or TanStack Start / Router.",
+        "Familiarity with Tailwind CSS and component animation libraries.",
+        "Familiarity with containerized workflows (Docker) and CI/CD pipelines.",
+      ],
+    },
+    tech_stack: [
+      {
+        name: "React",
+        canonical_name: "React",
+        category: "frontend",
+        devicon_slug: "react",
+        requirement_type: "mandatory",
+      },
+      {
+        name: "TypeScript",
+        canonical_name: "TypeScript",
+        category: "frontend",
+        devicon_slug: "typescript",
+        requirement_type: "mandatory",
+      },
+      {
+        name: "Tailwind CSS",
+        canonical_name: "Tailwind CSS",
+        category: "frontend",
+        devicon_slug: "tailwindcss",
+        requirement_type: "preferred",
+      },
+      {
+        name: "Node.js",
+        canonical_name: "Node.js",
+        category: "backend",
+        devicon_slug: "nodejs",
+        requirement_type: "mandatory",
+      },
+      {
+        name: "Docker",
+        canonical_name: "Docker",
+        category: "devops",
+        devicon_slug: "docker",
+        requirement_type: "preferred",
+      },
+    ],
+    benefits: [
+      "Competitive salary with performance bonuses and ESOP equity.",
+      "Comprehensive medical insurance for employee and dependents.",
+      "Flexible hybrid working schedule (2 days remote per week).",
+    ],
+  },
+};
+
+function JobApplyPage() {
+  const { jobId } = Route.useParams();
+  const navigate = useNavigate();
+
+  // Immediate synchronous lookup from local storage to prevent any UI flashing
+  const immediateApp = typeof window !== "undefined" ? findApplicationForJob(jobId) : null;
+  const hasSavedResume = Boolean(immediateApp?.resume?.analysisResult);
+
+  const [userId, setUserId] = useState<string>("guest_user");
+  const [job, setJob] = useState<Job>(DEMO_JOB_FALLBACK);
+  const [jobLoading, setJobLoading] = useState(true);
+  const [isInitialChecking, setIsInitialChecking] = useState<boolean>(!hasSavedResume);
+
+  const memoizedJobPosting = useMemo(
+    () => (job.generated_posting as Record<string, unknown>) || {},
+    [job.generated_posting],
+  );
+
+  // Application state: "input" | "analyzing" | "result"
+  const [stage, setStage] = useState<"input" | "analyzing" | "result">(
+    hasSavedResume ? "result" : "input",
+  );
+  const [analysisResult, setAnalysisResult] = useState<ResumeAnalysisResult | null>(
+    immediateApp?.resume?.analysisResult || null,
+  );
+  const [uploadedFileName, setUploadedFileName] = useState<string | null>(
+    immediateApp?.resume?.fileName || null,
+  );
+  const [preferredLanguage, setPreferredLanguage] = useState<"en" | "hi" | "hinglish">(
+    immediateApp?.language || "en",
+  );
+  const [analyzingStep, setAnalyzingStep] = useState(0);
+  const [error, setError] = useState<string | null>(null);
+
+  // Fetch job & check existing application to jump to furthest step
+  useEffect(() => {
+    let active = true;
+
+    async function loadData() {
+      try {
+        setJobLoading(true);
+        const { data, error: jobErr } = await supabase
+          .from("jobs")
+          .select("*")
+          .eq("id", jobId)
+          .maybeSingle();
+
+        if (active) {
+          if (data && !jobErr) {
+            setJob(data as Job);
+          } else {
+            setJob(DEMO_JOB_FALLBACK);
+          }
+        }
+      } catch (err) {
+        console.warn("Could not load job from database, using fallback:", err);
+        if (active) setJob(DEMO_JOB_FALLBACK);
+      }
+
+      // Check user & local applications store
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        const uid = user?.id || "guest_user";
+        if (active) {
+          setUserId(uid);
+          recordJobOpened(uid, jobId);
+
+          // Jump to furthest completed step if saved application exists
+          const existingApp = getApplication(uid, jobId) || findApplicationForJob(jobId, uid);
+          if (existingApp?.resume?.analysisResult) {
+            setAnalysisResult(existingApp.resume.analysisResult);
+            setUploadedFileName(existingApp.resume.fileName);
+            if (existingApp.language) {
+              setPreferredLanguage(existingApp.language);
+            }
+            setStage("result");
+          }
+        }
+      } catch (authErr) {
+        console.warn("Auth check fallback:", authErr);
+      } finally {
+        if (active) {
+          setIsInitialChecking(false);
+          setJobLoading(false);
+        }
+      }
+    }
+
+    loadData();
+
+    return () => {
+      active = false;
+    };
+  }, [jobId]);
+
+  // Handle resume submission and AI analysis
+  const handleAnalyzeResume = async (uploadData: ResumeUploadData) => {
+    setError(null);
+    setStage("analyzing");
+    setAnalyzingStep(0);
+
+    // Sequence progress indicators
+    const t1 = setTimeout(() => setAnalyzingStep(1), 800);
+    const t2 = setTimeout(() => setAnalyzingStep(2), 1800);
+    const t3 = setTimeout(() => setAnalyzingStep(3), 2800);
+
+    try {
+      const payload = {
+        jobId: job.id,
+        jobTitle: job.title,
+        jobCompany: job.company_name,
+        jobPosting: (job.generated_posting as Record<string, unknown>) || {},
+        resumeText: uploadData.resumeText,
+        resumeBase64: uploadData.resumeBase64 || "",
+        resumeFileName: uploadData.fileName,
+        candidateName: uploadData.candidateName,
+        candidateEmail: uploadData.candidateEmail,
+        preferredLanguage: uploadData.preferredLanguage,
+      };
+
+      let result: ResumeAnalysisResult;
+
+      try {
+        result = await analyzeResumeServerFn({ data: payload });
+      } catch (serverErr) {
+        console.warn("ServerFn fallback to client deterministic analyzer:", serverErr);
+        result = analyzeResumeDeterministically(
+          payload,
+          uploadData.resumeText,
+          uploadData.candidateName || "Candidate",
+          uploadData.candidateEmail || "",
+        );
+      }
+
+      // Record in client persistence store (Phase 2.1)
+      const langChoice = (
+        uploadData.preferredLanguage === "code_mixed" ? "hinglish" : uploadData.preferredLanguage
+      ) as "en" | "hi" | "hinglish";
+
+      setUploadedFileName(uploadData.fileName);
+      setPreferredLanguage(langChoice);
+
+      recordResumeUploaded(
+        userId,
+        job.id,
+        {
+          fileName: uploadData.fileName,
+          uploadedAt: new Date().toISOString(),
+          parsedSummary: result.executive_summary,
+          analysisResult: result,
+        },
+        langChoice,
+      );
+
+      // Persist application to Supabase if user is logged in
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+
+        if (user) {
+          const { data: existingApp } = await supabase
+            .from("applications")
+            .select("match_report")
+            .eq("job_id", job.id)
+            .eq("student_id", user.id)
+            .maybeSingle();
+
+          const existingReport = (existingApp?.match_report || {}) as Record<string, unknown>;
+
+          const reportPayload = {
+            ...existingReport,
+            ...(result as unknown as Record<string, unknown>),
+            candidate_name: result.candidate_name || uploadData.candidateName || user.email?.split("@")[0],
+            candidate_email: result.candidate_email || uploadData.candidateEmail || user.email,
+            target_role: job.title,
+            interview_scorecard: existingReport.interview_scorecard || undefined,
+            overallScore: existingReport.overallScore || undefined,
+          };
+
+          const { error: upsertErr } = await supabase.from("applications").upsert(
+            {
+              job_id: job.id,
+              student_id: user.id,
+              resume_path: uploadData.fileName,
+              match_score: result.overall_fit_percentage,
+              match_report: reportPayload,
+              status: "under_review",
+              result_published: true,
+            },
+            { onConflict: "job_id, student_id" },
+          );
+          if (upsertErr) {
+            console.error("Supabase application upsert error:", upsertErr);
+          }
+        }
+      } catch (dbErr) {
+        console.warn("Could not save application record to database:", dbErr);
+      }
+
+      setAnalysisResult(result);
+      setStage("result");
+    } catch (err: unknown) {
+      console.error("Resume analysis failure:", err);
+      setError(err instanceof Error ? err.message : "Failed to analyze resume. Please try again.");
+      setStage("input");
+    } finally {
+      clearTimeout(t1);
+      clearTimeout(t2);
+      clearTimeout(t3);
+    }
+  };
+
+  const structured = (job.generated_posting || {}) as Partial<StructuredJobListing>;
+  const location = job.location || structured.location || "Bengaluru, India";
+  const salary = job.salary_display || structured.salary?.display || "Competitive";
+  const workMode = job.work_mode || structured.work_mode || "Hybrid";
+
+  return (
+    <div className="relative min-h-screen bg-[#0a0a0a] text-[#f5f5f5] flex flex-col justify-between selection:bg-[#f5f5f5] selection:text-[#0a0a0a]">
+      {/* Background Dot Grid */}
+      <div aria-hidden className="dot-grid fixed inset-0 pointer-events-none opacity-40 z-0" />
+
+      {/* Atmospheric ambient top glow */}
+      <div
+        aria-hidden
+        className="pointer-events-none fixed -top-40 left-1/2 -z-10 h-[500px] w-[800px] -translate-x-1/2 rounded-full bg-gradient-to-b from-blue-600/10 via-indigo-600/5 to-transparent blur-[140px]"
+      />
+
+      {/* Top Floating Pill Navigation */}
+      <header className="relative pt-6 sm:pt-8 px-4 flex justify-center w-full z-20">
+        <nav
+          aria-label="Application navigation"
+          className="flex h-12 w-full max-w-[840px] items-center justify-between rounded-2xl bg-[#0c0e15]/85 backdrop-blur-2xl px-5 border border-white/[0.12] shadow-[0_16px_40px_rgba(0,0,0,0.7),inset_0_1px_0_0_rgba(255,255,255,0.12)]"
+        >
+          <Link
+            to="/dashboard"
+            className="inline-flex items-center gap-2 text-[13px] font-[600] text-zinc-400 transition-colors hover:text-white"
+          >
+            <ArrowLeft size={15} />
+            <span>Back to jobs</span>
+          </Link>
+
+          <Link
+            to="/"
+            className="flex items-center gap-2 text-[15px] font-[650] tracking-tight text-[#f5f5f5] transition-opacity hover:opacity-80"
+          >
+            <div className="flex h-6 w-6 items-center justify-center rounded-xl bg-white/10 border border-white/20">
+              <img src="/logo.png" alt="EigenHire" className="h-3.5 w-3.5 object-contain brightness-0 invert" />
+            </div>
+            <span>EigenHire</span>
+          </Link>
+
+          <span className="text-[11px] font-mono font-medium px-3 py-1 rounded-full bg-blue-500/15 text-blue-400 border border-blue-500/30">
+            Stage 2 · Screening
+          </span>
+        </nav>
+      </header>
+
+      {/* Main Workspace */}
+      <main className="relative z-10 flex-1 max-w-[1080px] w-full mx-auto px-4 pt-8 pb-16 space-y-8">
+        {/* Target Job Header Card */}
+        <div className="rounded-3xl bg-gradient-to-b from-[#141724]/90 to-[#0c0e17]/95 border border-white/12 p-6 sm:p-8 space-y-4 backdrop-blur-2xl shadow-[0_20px_45px_rgba(0,0,0,0.7),inset_0_1px_0_0_rgba(255,255,255,0.15)]">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3.5">
+              <CompanyLogo name={job.company_name} size="sm" />
+              <div>
+                <span className="text-[12px] font-mono font-medium text-blue-400 uppercase tracking-wider">
+                  Verified Opening
+                </span>
+                <h1 className="text-[22px] sm:text-[28px] font-semibold text-white tracking-tight leading-tight">
+                  {job.title}
+                </h1>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="inline-flex items-center px-3 py-1 rounded-full bg-white/[0.06] text-[12px] font-medium text-zinc-300 border border-white/10 capitalize font-mono">
+                {workMode}
+              </span>
+              <span className="inline-flex items-center px-3.5 py-1 rounded-full bg-blue-500/15 text-[12px] font-semibold text-blue-300 border border-blue-400/30 font-mono">
+                {salary}
+              </span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-4 text-[13px] text-zinc-400 flex-wrap border-t border-white/[0.08] pt-4 font-mono">
+            <span className="font-semibold text-white">{job.company_name}</span>
+            <span>•</span>
+            <span className="inline-flex items-center gap-1.5">
+              <MapPin size={13} className="text-blue-400" />
+              <span>{location}</span>
+            </span>
+            <span>•</span>
+            <span>Experience: {job.experience || "3+ years"}</span>
+          </div>
+        </div>
+
+        {/* Dynamic State 0: Application Status Checking Loader */}
+        {isInitialChecking ? (
+          <div className="rounded-[24px] bg-[#141414] border border-[rgba(255,255,255,0.10)] p-12 text-center space-y-5 max-w-lg mx-auto my-12 animate-in fade-in duration-200 shadow-2xl">
+            <div className="relative mx-auto flex h-14 w-14 items-center justify-center rounded-[30%] bg-[#1a1a1a] border border-[rgba(255,255,255,0.12)] text-[#f5f5f5]">
+              <div className="h-6 w-6 animate-spin rounded-full border-2 border-[rgba(255,255,255,0.15)] border-t-[#f5f5f5]" />
+            </div>
+
+            <div className="space-y-1.5">
+              <h3 className="text-[18px] font-[650] text-[#f5f5f5] tracking-tight">
+                Checking application status.
+              </h3>
+              <p className="text-[13px] text-[#8a8a8a]">
+                Retrieving your saved resume and interview progress...
+              </p>
+            </div>
+          </div>
+        ) : stage === "input" ? (
+          <ResumeUploadCard
+            onAnalyze={handleAnalyzeResume}
+            isLoading={false}
+            jobTitle={job.title}
+            companyName={job.company_name}
+          />
+        ) : null}
+
+        {/* Dynamic State 2: AI Analyzing Animation */}
+        {stage === "analyzing" && (
+          <div className="rounded-[24px] bg-[#141414] border border-[rgba(255,255,255,0.10)] p-12 text-center space-y-6 max-w-lg mx-auto my-12 shadow-2xl">
+            <div className="relative mx-auto flex h-16 w-16 items-center justify-center rounded-[30%] bg-[#1a1a1a] border border-[rgba(255,255,255,0.15)] text-[#f5f5f5]">
+              <div className="h-8 w-8 animate-spin rounded-full border-2 border-[rgba(255,255,255,0.15)] border-t-[#f5f5f5]" />
+            </div>
+
+            <div className="space-y-2">
+              <h3 className="text-[22px] font-[650] text-[#f5f5f5] tracking-tight">
+                Evaluating resume with AI.
+              </h3>
+              <p className="text-[14px] text-[#8a8a8a]">
+                Running semantic entity extraction and requirement audit matrix.
+              </p>
+            </div>
+
+            {/* Sequence indicators */}
+            <div className="rounded-[16px] bg-[#1a1a1a] p-4 text-left space-y-2.5 text-[13px] border border-[rgba(255,255,255,0.06)]">
+              <div
+                className={`flex items-center gap-2.5 transition-colors ${
+                  analyzingStep >= 0 ? "text-[#f5f5f5]" : "text-[#5c5c5c]"
+                }`}
+              >
+                <CheckCircle2
+                  size={15}
+                  className={analyzingStep >= 0 ? "text-emerald-400" : "text-[#5c5c5c]"}
+                />
+                <span>Extracting candidate skills and source text spans...</span>
+              </div>
+
+              <div
+                className={`flex items-center gap-2.5 transition-colors ${
+                  analyzingStep >= 1 ? "text-[#f5f5f5]" : "text-[#5c5c5c]"
+                }`}
+              >
+                <CheckCircle2
+                  size={15}
+                  className={analyzingStep >= 1 ? "text-emerald-400" : "text-[#5c5c5c]"}
+                />
+                <span>Normalizing technical aliases against job requirement profile...</span>
+              </div>
+
+              <div
+                className={`flex items-center gap-2.5 transition-colors ${
+                  analyzingStep >= 2 ? "text-[#f5f5f5]" : "text-[#5c5c5c]"
+                }`}
+              >
+                <CheckCircle2
+                  size={15}
+                  className={analyzingStep >= 2 ? "text-emerald-400" : "text-[#5c5c5c]"}
+                />
+                <span>Cross-referencing mandatory gates and experience depth...</span>
+              </div>
+
+              <div
+                className={`flex items-center gap-2.5 transition-colors ${
+                  analyzingStep >= 3 ? "text-[#f5f5f5]" : "text-[#5c5c5c]"
+                }`}
+              >
+                <CheckCircle2
+                  size={15}
+                  className={analyzingStep >= 3 ? "text-emerald-400" : "text-[#5c5c5c]"}
+                />
+                <span>Calculating hybrid match score and identifying gaps...</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Dynamic State 3: Analysis Results Dashboard */}
+        {stage === "result" && analysisResult && (
+          <div className="space-y-8 animate-in fade-in duration-300">
+            {/* Action Bar: Re-upload toggle */}
+            <div className="flex items-center justify-between border-b border-[rgba(255,255,255,0.08)] pb-4 flex-wrap gap-3">
+              <div className="flex items-center gap-2">
+                <span className="h-2 w-2 rounded-full bg-emerald-400" />
+                <span className="text-[13px] font-[600] text-[#f5f5f5]">
+                  Analysis Complete for {analysisResult.candidate_name}
+                </span>
+                {uploadedFileName && (
+                  <span className="text-[12px] text-[#8a8a8a] flex items-center gap-1.5 bg-[#1a1a1a] px-2.5 py-0.5 rounded-full border border-[rgba(255,255,255,0.06)]">
+                    <FileText size={12} className="text-[#f5f5f5]" />
+                    <span className="truncate max-w-[180px]">{uploadedFileName}</span>
+                  </span>
+                )}
+                <span className="text-[12px] text-[#707070]">
+                  ({new Date(analysisResult.analyzed_at).toLocaleTimeString()})
+                </span>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setStage("input")}
+                className="inline-flex h-9 items-center gap-1.5 rounded-full bg-[#1a1a1a] border border-[rgba(255,255,255,0.12)] px-4 text-[12px] font-[600] text-[#f5f5f5] hover:bg-[#262626] transition-colors"
+              >
+                <RefreshCw size={13} />
+                <span>Replace resume</span>
+              </button>
+            </div>
+
+            {/* 1. Overall Score & Category Breakdown */}
+            <AnalysisScoreCard
+              score={analysisResult.overall_fit_percentage}
+              fitLevel={analysisResult.fit_level}
+              breakdown={analysisResult.score_breakdown}
+              targetJobTitle={job.title}
+              candidateName={analysisResult.candidate_name}
+              modelUsed={analysisResult.model_used}
+            />
+
+            {/* 2. Executive Summary & "What you have" vs "What you are lacking in" */}
+            <AnalysisStrengthsGaps
+              summary={analysisResult.executive_summary}
+              strengths={analysisResult.strengths}
+              gaps={analysisResult.gaps}
+            />
+
+            {/* 3. Requirement-by-Requirement Audit Matrix */}
+            <RequirementMatrixCard matrix={analysisResult.requirement_matrix} />
+
+            {/* 4. Application Submission Confirmation */}
+            <div className="rounded-[24px] bg-[#141414] border border-[rgba(255,255,255,0.12)] p-6 sm:p-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="h-2 w-2 rounded-full bg-emerald-400" />
+                  <span className="text-[12px] font-[600] text-emerald-400 tracking-wide uppercase">
+                    Application Submitted
+                  </span>
+                </div>
+                <h3 className="text-[20px] font-[650] text-[#f5f5f5]">
+                  Your application has been received.
+                </h3>
+                <p className="text-[14px] text-[#8a8a8a]">
+                  The hiring team at <span className="text-[#f5f5f5] font-[600]">{job.company_name}</span> has received your resume and qualification audit report.
+                </p>
+              </div>
+              <Link
+                to="/dashboard"
+                className="inline-flex h-11 items-center gap-2 rounded-full bg-[#f5f5f5] px-6 text-[14px] font-[600] text-[#0a0a0a] transition-all hover:bg-[#e0e0e0] shrink-0 self-start sm:self-center"
+              >
+                <span>Return to Dashboard</span>
+                <ChevronRight size={16} />
+              </Link>
+            </div>
+          </div>
+        )}
+
+        {error && (
+          <div className="rounded-[16px] bg-red-500/10 border border-red-500/30 p-4 text-[13px] text-red-400 text-center">
+            {error}
+          </div>
+        )}
+      </main>
+
+      {/* Footer */}
+      <footer className="relative z-10 pb-8 pt-6 px-4 text-center border-t border-[rgba(255,255,255,0.06)] mt-8">
+        <p className="text-[12px] font-[450] text-[#707070]">
+          <span>© 2026 EigenHire Inc.</span>
+          <span className="mx-2">·</span>
+          <span>Resume Analyzer & Application Pipeline</span>
+          <span className="mx-2">·</span>
+          <span>People make every decision.</span>
+        </p>
+      </footer>
+    </div>
+  );
+}

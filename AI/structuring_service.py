@@ -1,0 +1,436 @@
+"""
+EigenHire AI Structuring Engine - Milestone 2 Update
+Converts unstructured recruiter job descriptions into structured Job Requirement Profiles.
+Features:
+- OpenAI primary model (gpt-4o-mini)
+- Google Gemini fallback model (gemini-2.5-flash)
+- Strict JSON Schema & Pydantic validation
+- Skill alias normalization and Devicon resolution
+- Input sanitization & audit trail recording (model name + prompt version)
+"""
+
+import os
+import re
+import json
+import logging
+from typing import Tuple, Optional
+from pathlib import Path
+import httpx
+from dotenv import load_dotenv
+
+from AI.models import (
+    StructuredJobListing,
+    SalaryStructure,
+    Qualifications,
+    TechStackItem,
+    RequirementType,
+)
+from AI.alias_normalization import normalize_tech_alias
+
+# Load environment variables from .env if present
+env_path = Path(__file__).resolve().parent.parent / ".env"
+load_dotenv(dotenv_path=env_path)
+
+logger = logging.getLogger("eigenhire.ai")
+logging.basicConfig(level=logging.INFO)
+
+PROMPT_VERSION = "v1.0.0"
+
+SYSTEM_PROMPT = """You are EigenHire's AI Recruitment Structuring Engine.
+Your job is to convert unstructured recruiter notes/paragraphs into a high-precision Indeed/Naukri-style structured job listing.
+
+CRITICAL RULES:
+1. STRICT FIDELITY: Do NOT invent, assume, or hallucinate anything that is NOT explicitly stated in the recruiter's text.
+   - If salary is missing: set min: null, max: null, display: "Not specified".
+   - If location is missing: set location: null.
+   - If work_mode is missing: set work_mode: null. (Allowed: "remote", "hybrid", "onsite", or null).
+   - If experience is missing: set experience: null.
+   - If employment_type is missing: set employment_type: null.
+2. NO TECHNOLOGY INFERENCE: Do NOT infer a skill just because a related technology is mentioned. For example, if Docker is mentioned, do NOT add Kubernetes unless Kubernetes is explicitly mentioned. If JavaScript is mentioned, do NOT add React unless React is explicitly mentioned.
+3. ALIAS NORMALIZATION: Convert aliases to canonical names (e.g. JS -> JavaScript, Postgres -> PostgreSQL, Node -> Node.js, TS -> TypeScript).
+4. REQUIREMENT TYPING: Tag each tech item and qualification with a requirement_type:
+   - "mandatory": explicitly required, non-negotiable ("must have", "required", "mandatory").
+   - "preferred": good to have, bonus, preferred ("plus", "nice to have", "preferred").
+   - "contextual": relevant to the team context or workflow.
+   - "informational": mentioned as background information.
+5. SALARY REFORMATTING: Keep the recruiter's stated salary numbers and currency exactly as given. Format the display string cleanly (e.g., "₹3,000 – ₹5,000 a month", "$80,000 – $100,000 a year", or "Not specified").
+6. STRUCTURED OUTPUT: Return ONLY a valid JSON object matching the requested schema. No markdown formatting, no conversational preamble.
+
+SCHEMA:
+{
+  "title": string,
+  "company": string,
+  "location": string or null,
+  "work_mode": "remote" | "hybrid" | "onsite" | null,
+  "employment_type": string or null,
+  "experience": string or null,
+  "salary": {
+    "min": number or null,
+    "max": number or null,
+    "currency": string,
+    "period": "month" | "year" | "hour" | "week",
+    "display": string
+  },
+  "about_role": string,
+  "responsibilities": [string],
+  "qualifications": {
+    "mandatory": [string],
+    "preferred": [string]
+  },
+  "tech_stack": [
+    {
+      "name": string,
+      "canonical_name": string,
+      "category": "frontend" | "backend" | "database" | "devops" | "ai_ml" | "mobile" | "tools" | "other",
+      "devicon_slug": string or null,
+      "requirement_type": "mandatory" | "preferred" | "contextual" | "informational"
+    }
+  ],
+  "benefits": [string]
+}
+"""
+
+def sanitize_input(text: str, max_chars: int = 15000) -> str:
+    """
+    Sanitize raw recruiter input:
+    - Strip dangerous HTML/script injection attempts
+    - Normalize control characters
+    - Truncate to maximum characters
+    """
+    if not text:
+        return ""
+    # Strip HTML tags
+    cleaned = re.sub(r"<[^>]*?>", "", text)
+    # Normalize unicode whitespace
+    cleaned = re.sub(r"[\r\n\t]+", "\n", cleaned)
+    # Strip non-printable ASCII except standard whitespace
+    cleaned = "".join(ch for ch in cleaned if ch == "\n" or 32 <= ord(ch) <= 126 or ord(ch) > 127)
+    return cleaned.strip()[:max_chars]
+
+
+def post_process_listing(listing_dict: dict, fallback_title: str, fallback_company: str) -> StructuredJobListing:
+    """
+    Validates, normalizes aliases, and ensures all fields adhere to constraints.
+    """
+    # Ensure title and company are present
+    if not listing_dict.get("title"):
+        listing_dict["title"] = fallback_title or "Job Opening"
+    if not listing_dict.get("company"):
+        listing_dict["company"] = fallback_company or "EigenHire"
+
+    # Normalize tech stack items with our canonical catalog
+    tech_stack_raw = listing_dict.get("tech_stack", [])
+    normalized_tech = []
+    seen_canonical = set()
+
+    for item in tech_stack_raw:
+        if isinstance(item, str):
+            raw_name = item
+            cat_hint = None
+            req_type: RequirementType = "preferred"
+        elif isinstance(item, dict):
+            raw_name = item.get("name") or item.get("canonical_name") or ""
+            cat_hint = item.get("category")
+            req_type_raw = str(item.get("requirement_type", "preferred")).lower()
+            req_type = req_type_raw if req_type_raw in ["mandatory", "preferred", "contextual", "informational"] else "preferred"
+        else:
+            continue
+
+        if not raw_name.strip():
+            continue
+
+        canonical, category, devicon = normalize_tech_alias(raw_name, cat_hint)
+        if canonical.lower() in seen_canonical:
+            continue
+        seen_canonical.add(canonical.lower())
+
+        normalized_tech.append(
+            TechStackItem(
+                name=raw_name.strip(),
+                canonical_name=canonical,
+                category=category,
+                devicon_slug=devicon,
+                requirement_type=req_type,
+            )
+        )
+
+    listing_dict["tech_stack"] = [t.model_dump() for t in normalized_tech]
+
+    # Validate salary object
+    sal = listing_dict.get("salary")
+    if not isinstance(sal, dict):
+        listing_dict["salary"] = {
+            "min": None,
+            "max": None,
+            "currency": "INR",
+            "period": "month",
+            "display": "Not specified",
+        }
+    else:
+        display = sal.get("display")
+        if not display or display.strip().lower() in ["null", "none", "not provided"]:
+            if sal.get("min") or sal.get("max"):
+                curr = sal.get("currency", "INR")
+                period = sal.get("period", "month")
+                if sal.get("min") and sal.get("max"):
+                    sal["display"] = f"{curr} {sal['min']:,.0f} – {sal['max']:,.0f} per {period}"
+                elif sal.get("min"):
+                    sal["display"] = f"From {curr} {sal['min']:,.0f} per {period}"
+                else:
+                    sal["display"] = f"Up to {curr} {sal['max']:,.0f} per {period}"
+            else:
+                sal["display"] = "Not specified"
+
+    # Enforce work_mode choices
+    wm = listing_dict.get("work_mode")
+    if wm and str(wm).lower() in ["remote", "hybrid", "onsite"]:
+        listing_dict["work_mode"] = str(wm).lower()
+    else:
+        listing_dict["work_mode"] = None
+
+    return StructuredJobListing.model_validate(listing_dict)
+
+
+async def call_openai_structuring(prompt_user_content: str, api_key: str) -> dict:
+    """
+    Calls OpenAI Chat Completions API with strict JSON mode.
+    """
+    url = "https://api.openai.com/v1/chat/completions"
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    }
+    payload = {
+        "model": "gpt-4o-mini",
+        "messages": [
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": prompt_user_content},
+        ],
+        "response_format": {"type": "json_object"},
+        "temperature": 0.1,
+    }
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        response = await client.post(url, headers=headers, json=payload)
+        response.raise_for_status()
+        data = response.json()
+        raw_content = data["choices"][0]["message"]["content"]
+        return json.loads(raw_content)
+
+
+GEMINI_MODELS = [
+    os.environ.get("LLM_MODEL_PRIMARY", "gemini-2.5-flash"),
+    "gemini-2.5-flash",
+    "gemini-2.0-flash",
+    "gemini-1.5-flash",
+    "gemini-1.5-flash-8b",
+    "gemini-flash-latest",
+    "gemini-flash-lite-latest",
+]
+
+async def call_gemini_structuring(prompt_user_content: str, api_key: str, model_name: str = "gemini-3.8-flash") -> dict:
+    """
+    Calls Google Gemini API with JSON mode fallback.
+    """
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
+    headers = {"Content-Type": "application/json"}
+    payload = {
+        "system_instruction": {"parts": [{"text": SYSTEM_PROMPT}]},
+        "contents": [{"parts": [{"text": prompt_user_content}]}],
+        "generationConfig": {
+            "response_mime_type": "application/json",
+            "temperature": 0.1,
+        },
+    }
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        response = await client.post(url, headers=headers, json=payload)
+        response.raise_for_status()
+        data = response.json()
+        raw_text = data["candidates"][0]["content"]["parts"][0]["text"]
+        return json.loads(raw_text)
+
+
+def is_valid_api_key(key: str) -> bool:
+    """Checks if an API key is non-empty and not a placeholder."""
+    if not key:
+        return False
+    k = key.strip().lower()
+    return not (k.startswith("your_") or "here" in k or "placeholder" in k)
+
+
+def generate_heuristic_fallback_listing(
+    clean_title: str, clean_company: str, clean_desc: str, clean_salary: str
+) -> dict:
+    """
+    Fallback deterministic parser when AI providers are unavailable,
+    ensuring recruiters can always structure and post jobs.
+    """
+    from AI.alias_normalization import TECH_CATALOG
+
+    desc_lower = clean_desc.lower()
+    found_tech = []
+    seen_canonical = set()
+
+    for alias, (canonical, devicon, category) in TECH_CATALOG.items():
+        pattern = r"\b" + re.escape(alias) + r"\b"
+        if re.search(pattern, desc_lower):
+            if canonical.lower() not in seen_canonical:
+                seen_canonical.add(canonical.lower())
+                found_tech.append({
+                    "name": canonical,
+                    "canonical_name": canonical,
+                    "category": category,
+                    "devicon_slug": devicon,
+                    "requirement_type": "mandatory" if len(found_tech) < 3 else "preferred"
+                })
+
+    raw_lines = [
+        line.strip().lstrip("-*•0123456789. ")
+        for line in clean_desc.splitlines()
+        if line.strip()
+    ]
+    responsibilities = raw_lines[:5] if len(raw_lines) > 1 else [
+        f"Contribute to {clean_title} development and feature delivery",
+        "Collaborate with engineering teammates and stakeholders",
+        "Maintain code quality, test coverage, and documentation"
+    ]
+
+    mandatory_quals = [t["canonical_name"] for t in found_tech[:3]] if found_tech else ["Relevant software development experience or equivalent degree"]
+    preferred_quals = [t["canonical_name"] for t in found_tech[3:6]] if len(found_tech) > 3 else ["Strong problem-solving and communicative abilities"]
+
+    work_mode = "remote" if "remote" in desc_lower else ("hybrid" if "hybrid" in desc_lower else "onsite")
+
+    return {
+        "title": clean_title,
+        "company": clean_company,
+        "location": "Remote" if work_mode == "remote" else "Bengaluru / Hybrid",
+        "work_mode": work_mode,
+        "employment_type": "Full-time",
+        "experience": "0-2 years" if "junior" in clean_title.lower() or "intern" in clean_title.lower() else "2+ years",
+        "salary": {
+            "min": None,
+            "max": None,
+            "currency": "INR",
+            "period": "month",
+            "display": clean_salary if clean_salary else "Not specified"
+        },
+        "about_role": f"We are seeking a dedicated {clean_title} to join {clean_company}.",
+        "responsibilities": responsibilities,
+        "qualifications": {
+            "mandatory": mandatory_quals,
+            "preferred": preferred_quals
+        },
+        "tech_stack": found_tech,
+        "benefits": ["Flexible working hours", "Learning & development support", "Health coverage"]
+    }
+
+
+async def generate_structured_listing(
+    title: str,
+    company: str,
+    description: str,
+    salary: Optional[str] = None,
+) -> Tuple[StructuredJobListing, str, str]:
+    """
+    Generates structured job listing with:
+    1. Input sanitization
+    2. Primary OpenAI gpt-4o-mini with 1 retry
+    3. Fallback Gemini models
+    4. Deterministic heuristic fallback if AI providers are unreachable/unconfigured
+    5. Post-processing and Pydantic validation
+    Returns: (StructuredJobListing, model_name, prompt_version)
+    """
+    clean_title = sanitize_input(title, 200)
+    clean_company = sanitize_input(company, 200)
+    clean_desc = sanitize_input(description, 15000)
+    clean_salary = sanitize_input(salary or "", 200)
+
+    user_prompt = f"""Job Title Provided: {clean_title}
+Company Name Provided: {clean_company}
+Stated Salary Input: {clean_salary if clean_salary else "Not specified"}
+
+Recruiter Raw Description:
+\"\"\"{clean_desc}\"\"\"
+
+Generate the structured JSON job listing according to the rules and schema."""
+
+    raw_openai_key = os.environ.get("OPENAI_API_KEY", "").strip()
+    openai_key = raw_openai_key if is_valid_api_key(raw_openai_key) else ""
+
+    gemini_keys = [
+        k.strip()
+        for k in os.environ.get("GEMINI_API_KEY", "").split(",")
+        if is_valid_api_key(k.strip())
+    ]
+
+    model_used = ""
+    parsed_json = None
+    last_error = None
+
+    # Step 1: Try OpenAI (primary) with 1 retry on timeout / malformed json
+    if openai_key:
+        for attempt in range(2):
+            try:
+                logger.info(f"Calling OpenAI gpt-4o-mini (attempt {attempt + 1})...")
+                parsed_json = await call_openai_structuring(user_prompt, openai_key)
+                model_used = "openai/gpt-4o-mini"
+                break
+            except Exception as e:
+                logger.warning(f"OpenAI attempt {attempt + 1} failed: {e}")
+                last_error = e
+
+    # Step 2: Fallback to Gemini if OpenAI failed or no key (supports multiple rotating keys)
+    if not parsed_json and gemini_keys:
+        for k_idx, current_key in enumerate(gemini_keys):
+            key_mask = f"{current_key[:8]}...{current_key[-4:]}"
+            logger.info(f"Evaluating Gemini API Key [{k_idx+1}/{len(gemini_keys)}] ({key_mask})...")
+            key_exhausted = False
+
+            for candidate_model in GEMINI_MODELS:
+                try:
+                    logger.info(f"Calling Gemini ({candidate_model}) with key #{k_idx+1}...")
+                    parsed_json = await call_gemini_structuring(user_prompt, current_key, candidate_model)
+                    model_used = f"google/{candidate_model}"
+                    logger.info(f"Gemini structuring succeeded via key #{k_idx+1} ({candidate_model})")
+                    break
+                except httpx.HTTPStatusError as http_err:
+                    status_code = http_err.response.status_code
+                    err_body = http_err.response.text.lower()
+                    if status_code == 429 or "quota" in err_body or "resource_exhausted" in err_body:
+                        logger.warning(f"Gemini key #{k_idx+1} quota/credits exhausted (429). Rotating to next key...")
+                        key_exhausted = True
+                        break
+                    elif status_code == 403:
+                        logger.warning(f"Gemini key #{k_idx+1} unauthorized/free tier unavailable (403). Rotating to next key...")
+                        key_exhausted = True
+                        break
+                    elif status_code in (503, 404):
+                        logger.warning(f"Gemini model {candidate_model} returned {status_code}. Trying next model...")
+                        last_error = http_err
+                        continue
+                    else:
+                        logger.error(f"Gemini HTTP {status_code} on key #{k_idx+1}: {http_err}")
+                        last_error = http_err
+                except Exception as e:
+                    logger.warning(f"Gemini error with {candidate_model} on key #{k_idx+1}: {e}")
+                    last_error = e
+
+            if parsed_json:
+                break
+            if key_exhausted:
+                continue
+
+    # Step 3: Heuristic Fallback if remote providers are unconfigured or fail
+    if not parsed_json:
+        logger.info("AI providers unconfigured or unavailable. Using heuristic structuring engine.")
+        parsed_json = generate_heuristic_fallback_listing(
+            clean_title, clean_company, clean_desc, clean_salary
+        )
+        model_used = "heuristic-catalog-engine"
+
+    # Step 4: Validate and enrich
+    structured_listing = post_process_listing(parsed_json, clean_title, clean_company)
+    return structured_listing, model_used, PROMPT_VERSION
+    return structured_listing, model_used, PROMPT_VERSION
+

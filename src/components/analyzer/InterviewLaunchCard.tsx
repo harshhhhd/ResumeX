@@ -1,0 +1,197 @@
+import { useState, useEffect } from "react";
+import {
+  Video,
+  Languages,
+  ArrowRight,
+  Sparkles,
+  CheckCircle2,
+  Clock,
+  AlertCircle,
+} from "lucide-react";
+import { AiInterviewRoom } from "@/components/interview/AiInterviewRoom";
+import { useMediaSession } from "@/hooks/useMediaSession";
+import { recordConsentAndLanguage } from "@/lib/applications";
+import type { PlanContext } from "@/lib/interview-planner";
+
+interface InterviewLaunchCardProps {
+  userId?: string;
+  jobId?: string;
+  candidateName: string;
+  targetJobTitle: string;
+  jobPosting?: Record<string, unknown>;
+  preferredLanguage?: "en" | "hi" | "hinglish";
+  verificationQuestions?: string[];
+  analysis?: PlanContext["analysis"];
+}
+
+export function InterviewLaunchCard({
+  userId = "guest_user",
+  jobId = "demo-job",
+  candidateName,
+  targetJobTitle,
+  jobPosting = {},
+  preferredLanguage = "en",
+  verificationQuestions = [],
+  analysis,
+}: InterviewLaunchCardProps) {
+  const [selectedLanguage, setSelectedLanguage] = useState<"en" | "hi" | "hinglish">(
+    preferredLanguage,
+  );
+  const [isInterviewOpen, setIsInterviewOpen] = useState(false);
+
+  const { isAcquired, permissionStatus, error: mediaError, acquire } = useMediaSession();
+
+  // Pre-check / acquire permissions on mount silently
+  useEffect(() => {
+    acquire().catch(() => {});
+  }, [acquire]);
+
+  const handleStart = async () => {
+    // Record consent and language in persistence
+    recordConsentAndLanguage(userId, jobId, selectedLanguage);
+
+    // Acquire stream if not already acquired
+    if (!isAcquired) {
+      await acquire().catch(() => {});
+    }
+
+    setIsInterviewOpen(true);
+  };
+
+  return (
+    <>
+      <div className="rounded-[24px] bg-[#141414] border border-[rgba(255,255,255,0.12)] p-6 sm:p-8 space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[rgba(255,255,255,0.08)] pb-5">
+          <div>
+            <p className="mt-1 text-[14px] font-[450] text-[#8a8a8a]">
+              Screening complete. You may proceed directly to the conversational AI interview for{" "}
+              <span className="text-[#f5f5f5] font-[600]">{targetJobTitle}</span>.
+            </p>
+          </div>
+
+          {/* Primary Start Interview Button */}
+          <button
+            type="button"
+            onClick={handleStart}
+            className="inline-flex h-12 items-center gap-2 rounded-full bg-[#f5f5f5] px-8 text-[15px] font-[600] text-[#0a0a0a] transition-all hover:bg-[#e0e0e0] active:scale-[0.98] self-start sm:self-center shrink-0"
+          >
+            <span>Start AI interview</span>
+            <ArrowRight size={16} />
+          </button>
+        </div>
+
+        {/* Media permission warning if denied */}
+        {permissionStatus === "denied" && (
+          <div className="rounded-[16px] bg-[#1a1a1a] border border-[rgba(255,255,255,0.10)] p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-[13px]">
+            <div className="flex items-center gap-2.5 text-[#8a8a8a]">
+              <AlertCircle size={16} className="text-[#f5f5f5] shrink-0" />
+              <span>
+                Camera or microphone access is blocked in your browser settings. Please enable
+                camera and microphone permissions to proceed with voice/video.
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => acquire()}
+              className="inline-flex h-8 items-center px-4 rounded-full bg-[#141414] border border-[rgba(255,255,255,0.12)] text-[12px] font-[600] text-[#f5f5f5] hover:bg-[#262626] transition-colors shrink-0"
+            >
+              Try again
+            </button>
+          </div>
+        )}
+
+        {/* Interview Configuration Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* 1. Language Mode */}
+          <div className="rounded-[16px] bg-[#1a1a1a] p-4 border border-[rgba(255,255,255,0.06)] space-y-2">
+            <div className="flex items-center gap-2 text-[12px] font-[600] text-[#8a8a8a]">
+              <Languages size={14} className="text-[#f5f5f5]" />
+              <span>Interview Language</span>
+            </div>
+            <div className="flex items-center gap-1.5 pt-1">
+              {(["en", "hi", "hinglish"] as const).map((lang) => (
+                <button
+                  key={lang}
+                  type="button"
+                  onClick={() => setSelectedLanguage(lang)}
+                  className={`px-3 py-1.5 rounded-full text-[12px] font-[600] transition-colors ${
+                    selectedLanguage === lang
+                      ? "bg-[#f5f5f5] text-[#0a0a0a]"
+                      : "bg-[#141414] text-[#8a8a8a] border border-[rgba(255,255,255,0.08)] hover:text-[#f5f5f5]"
+                  }`}
+                >
+                  {lang === "en" ? "EN" : lang === "hi" ? "HI" : "Hinglish"}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* 2. Device Readiness */}
+          <div className="rounded-[16px] bg-[#1a1a1a] p-4 border border-[rgba(255,255,255,0.06)] space-y-2">
+            <div className="flex items-center gap-2 text-[12px] font-[600] text-[#8a8a8a]">
+              <Video size={14} className="text-[#f5f5f5]" />
+              <span>AI Interviewer & Video Mirror</span>
+            </div>
+            <div className="flex items-center gap-3 pt-1 text-[13px] font-[500] text-[#f5f5f5]">
+              <span className="inline-flex items-center gap-1.5 text-emerald-400">
+                <CheckCircle2 size={13} />
+                <span>Mira AI Ready</span>
+              </span>
+              <span
+                className={`inline-flex items-center gap-1.5 ${
+                  isAcquired ? "text-emerald-400" : "text-[#8a8a8a]"
+                }`}
+              >
+                <CheckCircle2 size={13} />
+                <span>{isAcquired ? "Webcam & Mic Connected" : "Permission Standby"}</span>
+              </span>
+            </div>
+          </div>
+
+          {/* 3. Estimated Duration */}
+          <div className="rounded-[16px] bg-[#1a1a1a] p-4 border border-[rgba(255,255,255,0.06)] space-y-2">
+            <div className="flex items-center gap-2 text-[12px] font-[600] text-[#8a8a8a]">
+              <Clock size={14} className="text-[#f5f5f5]" />
+              <span>Duration & Format</span>
+            </div>
+            <p className="text-[13px] font-[600] text-[#f5f5f5] pt-1">
+              ~15 minutes · 5 structured questions
+            </p>
+          </div>
+        </div>
+
+        {/* Personalized Questions Preview */}
+        {verificationQuestions && verificationQuestions.length > 0 && (
+          <div className="rounded-[16px] bg-[#1a1a1a]/60 border border-[rgba(255,255,255,0.06)] p-4 space-y-2.5">
+            <div className="flex items-center gap-2 text-[12px] font-[650] text-[#f5f5f5]">
+              <Sparkles size={14} className="text-[#f5f5f5]" />
+              <span>AI Question Planner: Tailored Topics for Your Session</span>
+            </div>
+            <ul className="space-y-1.5 text-[13px] text-[#8a8a8a] pl-5 list-disc">
+              {verificationQuestions.slice(0, 3).map((q, idx) => (
+                <li key={idx} className="leading-relaxed">
+                  {q}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </div>
+
+      {/* Live AI Interview Room Modal */}
+      {isInterviewOpen && (
+        <AiInterviewRoom
+          userId={userId}
+          jobId={jobId}
+          candidateName={candidateName}
+          targetJobTitle={targetJobTitle}
+          jobPosting={jobPosting}
+          verificationQuestions={verificationQuestions}
+          preferredLanguage={selectedLanguage}
+          analysis={analysis}
+          onClose={() => setIsInterviewOpen(false)}
+        />
+      )}
+    </>
+  );
+}
