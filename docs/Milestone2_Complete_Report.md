@@ -14,7 +14,7 @@
 
 ### Team Members & Details
 | S.No | Name | Enrollment No. | Institutional Email ID |
-| :---: | :--- | :---: | :--- | :--- |
+| :---: | :--- | :---: | :--- |
 | **1** | Kartik Nagar | S24CSEU1960 | S24CSEU1960@bennett.edu.in |
 | **2** | Harsh Dhiman | S24CSEU2329 | S24CSEU2329@bennett.edu.in |
 | **3** | Deepanshi Pokhriyal | S24CSEU2688 | S24CSEU2688@bennett.edu.in |
