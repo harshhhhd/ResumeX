@@ -7,7 +7,7 @@
 # SECTION 1: COVER PAGE
 
 - **Team ID:** T42 *(Use the exact assigned ID from your LMS/email notification)*
-- **Team Name:** BastionBytes
+- **Team Name:** ResumeX
 - **Project Title:** AI-Powered Resume Reviewer: Resume Feedback Against a Job Description (Problem Pool C9)
 - **Batch / Group:** B49 - B64
 - **Course Code & Title:** SCSE4041 — Prompt Engineering
@@ -15,10 +15,10 @@
 ### Team Members & Details
 | S.No | Name | Enrollment No. | Institutional Email ID | Role |
 | :---: | :--- | :---: | :--- | :--- |
-| **1** | Kartik Nagar | S24CSEU1960 | S24CSEU1960@bennett.edu.in | Prompt Architecture & Lead |
-| **2** | Harsh Dhiman | S24CSEU2329 | S24CSEU2329@bennett.edu.in | Prompt Engineering (Rewriter) |
-| **3** | Deepanshi Pokhriyal | S24CSEU2688 | S24CSEU2688@bennett.edu.in | Backend & Prompt Integration |
-| **4** | Devansh Khanna | S24CSEU2317 | S24CSEU0830@bennett.edu.in | Frontend & Prototype UI |
+| **1** | Kartik Nagar | S24CSEU1960 | S24CSEU1960@bennett.edu.in |
+| **2** | Harsh Dhiman | S24CSEU2329 | S24CSEU2329@bennett.edu.in |
+| **3** | Deepanshi Pokhriyal | S24CSEU2688 | S24CSEU2688@bennett.edu.in |
+| **4** | Devansh Khanna | S24CSEU2317 | S24CSEU0830@bennett.edu.in |
 
 ### Submission Links
 - **Prototype Link:** `https://github.com/harshhhhd/ResumeX` *(or deployed Vercel URL)*
