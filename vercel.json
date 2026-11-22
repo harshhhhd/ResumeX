@@ -1,0 +1,19 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "services": {
+    "app": {
+      "root": ".",
+      "framework": "tanstack-start-lovable",
+      "bindings": [
+        { "type": "service", "service": "ai", "format": "url", "env": "AI_URL" }
+      ]
+    },
+    "ai": {
+      "root": "AI",
+      "framework": "fastapi"
+    }
+  },
+  "rewrites": [
+    { "source": "/(.*)", "destination": { "service": "app" } }
+  ]
+}
